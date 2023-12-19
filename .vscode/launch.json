@@ -9,8 +9,7 @@
             "program": "${workspaceFolder}/cmd/kyverno",
             "args": [
                 "--kubeconfig=${userHome}/.kube/config",
-                "--serverIP=172.18.0.1:9443",
-                "--backgroundServiceAccountName=system:serviceaccount:kyverno:kyverno-background-controller",
+                "--serverIP=<SERVER-IP>:9443",
                 "-v=2",
                 "--caSecretName=kyverno-svc.kyverno.svc.kyverno-tls-ca",
                 "--tlsSecretName=kyverno-svc.kyverno.svc.kyverno-tls-pair",
@@ -91,7 +90,7 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "test",
-                "test/cli"
+                "./test/cli/",
             ],
         }
     ]

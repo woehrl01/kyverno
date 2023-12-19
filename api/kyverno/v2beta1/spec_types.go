@@ -54,7 +54,9 @@ type Spec struct {
 	// +kubebuilder:default=true
 	Background *bool `json:"background,omitempty" yaml:"background,omitempty"`
 
-	// Deprecated.
+	// SchemaValidation skips validation checks for policies as well as patched resources.
+	// Optional. The default value is set to "true", it must be set to "false" to disable the validation checks.
+	// +optional
 	SchemaValidation *bool `json:"schemaValidation,omitempty" yaml:"schemaValidation,omitempty"`
 
 	// WebhookTimeoutSeconds specifies the maximum time in seconds allowed to apply this policy.
