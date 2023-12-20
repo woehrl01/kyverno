@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-logr/logr"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
 	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -18,7 +17,6 @@ type Handler interface {
 		unstructured.Unstructured,
 		kyvernov1.Rule,
 		engineapi.EngineContextLoader,
-		[]kyvernov2.PolicyException,
 	) (unstructured.Unstructured, []engineapi.RuleResponse)
 }
 
