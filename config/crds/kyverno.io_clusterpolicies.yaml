@@ -3367,7 +3367,7 @@ spec:
                                               default: sha256
                                               description: Specify signature algorithm
                                                 for public keys. Supported values
-                                                are sha256 and sha512.
+                                                are sha224, sha256, sha384 and sha512.
                                               type: string
                                           type: object
                                         repository:
@@ -3824,7 +3824,8 @@ spec:
                                                   default: sha256
                                                   description: Specify signature algorithm
                                                     for public keys. Supported values
-                                                    are sha256 and sha512.
+                                                    are sha224, sha256, sha384 and
+                                                    sha512.
                                                   type: string
                                               type: object
                                             repository:
@@ -4240,7 +4241,7 @@ spec:
                                             default: sha256
                                             description: Specify signature algorithm
                                               for public keys. Supported values are
-                                              sha256 and sha512.
+                                              sha224, sha256, sha384 and sha512.
                                             type: string
                                         type: object
                                       repository:
@@ -4355,7 +4356,9 @@ spec:
                   type: object
                 type: array
               schemaValidation:
-                description: Deprecated.
+                description: SchemaValidation skips validation checks for policies
+                  as well as patched resources. Optional. The default value is set
+                  to "true", it must be set to "false" to disable the validation checks.
                 type: boolean
               useServerSideApply:
                 description: UseServerSideApply controls whether to use server-side
@@ -7857,7 +7860,8 @@ spec:
                                                   default: sha256
                                                   description: Specify signature algorithm
                                                     for public keys. Supported values
-                                                    are sha256 and sha512.
+                                                    are sha224, sha256, sha384 and
+                                                    sha512.
                                                   type: string
                                               type: object
                                             repository:
@@ -8343,8 +8347,8 @@ spec:
                                                       default: sha256
                                                       description: Specify signature
                                                         algorithm for public keys.
-                                                        Supported values are sha256
-                                                        and sha512.
+                                                        Supported values are sha224,
+                                                        sha256, sha384 and sha512.
                                                       type: string
                                                   type: object
                                                 repository:
@@ -8782,7 +8786,7 @@ spec:
                                                 default: sha256
                                                 description: Specify signature algorithm
                                                   for public keys. Supported values
-                                                  are sha256 and sha512.
+                                                  are sha224, sha256, sha384 and sha512.
                                                 type: string
                                             type: object
                                           repository:
@@ -12121,7 +12125,7 @@ spec:
                                               default: sha256
                                               description: Specify signature algorithm
                                                 for public keys. Supported values
-                                                are sha256 and sha512.
+                                                are sha224, sha256, sha384 and sha512.
                                               type: string
                                           type: object
                                         repository:
@@ -12567,7 +12571,8 @@ spec:
                                                   default: sha256
                                                   description: Specify signature algorithm
                                                     for public keys. Supported values
-                                                    are sha256 and sha512.
+                                                    are sha224, sha256, sha384 and
+                                                    sha512.
                                                   type: string
                                               type: object
                                             repository:
@@ -12983,7 +12988,7 @@ spec:
                                             default: sha256
                                             description: Specify signature algorithm
                                               for public keys. Supported values are
-                                              sha256 and sha512.
+                                              sha224, sha256, sha384 and sha512.
                                             type: string
                                         type: object
                                       repository:
@@ -13083,7 +13088,9 @@ spec:
                   type: object
                 type: array
               schemaValidation:
-                description: Deprecated.
+                description: SchemaValidation skips validation checks for policies
+                  as well as patched resources. Optional. The default value is set
+                  to "true", it must be set to "false" to disable the validation checks.
                 type: boolean
               useServerSideApply:
                 description: UseServerSideApply controls whether to use server-side
@@ -16585,7 +16592,8 @@ spec:
                                                   default: sha256
                                                   description: Specify signature algorithm
                                                     for public keys. Supported values
-                                                    are sha256 and sha512.
+                                                    are sha224, sha256, sha384 and
+                                                    sha512.
                                                   type: string
                                               type: object
                                             repository:
@@ -17071,8 +17079,8 @@ spec:
                                                       default: sha256
                                                       description: Specify signature
                                                         algorithm for public keys.
-                                                        Supported values are sha256
-                                                        and sha512.
+                                                        Supported values are sha224,
+                                                        sha256, sha384 and sha512.
                                                       type: string
                                                   type: object
                                                 repository:
@@ -17510,7 +17518,7 @@ spec:
                                                 default: sha256
                                                 description: Specify signature algorithm
                                                   for public keys. Supported values
-                                                  are sha256 and sha512.
+                                                  are sha224, sha256, sha384 and sha512.
                                                 type: string
                                             type: object
                                           repository:
