@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/resource"
-	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/store"
 	"github.com/kyverno/kyverno/pkg/registryclient"
 	yamlutils "github.com/kyverno/kyverno/pkg/utils/yaml"
 	"gotest.tools/assert"
@@ -109,7 +108,6 @@ func Test_NamespaceSelector(t *testing.T) {
 		policyArray, _, _ := yamlutils.GetPolicy(tc.policy)
 		resourceArray, _ := resource.GetUnstructuredResources(tc.resource)
 		processor := PolicyProcessor{
-			Store:                &store.Store{},
 			Policies:             policyArray,
 			Resource:             *resourceArray[0],
 			MutateLogPath:        "",

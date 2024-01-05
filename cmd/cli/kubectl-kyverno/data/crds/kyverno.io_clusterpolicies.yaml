@@ -3473,18 +3473,6 @@ spec:
                                     items:
                                       type: string
                                     type: array
-                                  restrictedField:
-                                    description: RestrictedField selects the field
-                                      for the given Pod Security Standard control.
-                                      When not set, all restricted fields for the
-                                      control are selected.
-                                    type: string
-                                  values:
-                                    description: Values defines the allowed values
-                                      that can be excluded.
-                                    items:
-                                      type: string
-                                    type: array
                                 required:
                                 - controlName
                                 type: object
@@ -4368,7 +4356,9 @@ spec:
                   type: object
                 type: array
               schemaValidation:
-                description: Deprecated.
+                description: SchemaValidation skips validation checks for policies
+                  as well as patched resources. Optional. The default value is set
+                  to "true", it must be set to "false" to disable the validation checks.
                 type: boolean
               useServerSideApply:
                 description: UseServerSideApply controls whether to use server-side
@@ -7977,18 +7967,6 @@ spec:
                                           checks are applied at the pod level only.
                                           Wildcards (''*'' and ''?'') are allowed.
                                           See: https://kubernetes.io/docs/concepts/containers/images.'
-                                        items:
-                                          type: string
-                                        type: array
-                                      restrictedField:
-                                        description: RestrictedField selects the field
-                                          for the given Pod Security Standard control.
-                                          When not set, all restricted fields for
-                                          the control are selected.
-                                        type: string
-                                      values:
-                                        description: Values defines the allowed values
-                                          that can be excluded.
                                         items:
                                           type: string
                                         type: array
@@ -12253,18 +12231,6 @@ spec:
                                     items:
                                       type: string
                                     type: array
-                                  restrictedField:
-                                    description: RestrictedField selects the field
-                                      for the given Pod Security Standard control.
-                                      When not set, all restricted fields for the
-                                      control are selected.
-                                    type: string
-                                  values:
-                                    description: Values defines the allowed values
-                                      that can be excluded.
-                                    items:
-                                      type: string
-                                    type: array
                                 required:
                                 - controlName
                                 type: object
@@ -13122,7 +13088,9 @@ spec:
                   type: object
                 type: array
               schemaValidation:
-                description: Deprecated.
+                description: SchemaValidation skips validation checks for policies
+                  as well as patched resources. Optional. The default value is set
+                  to "true", it must be set to "false" to disable the validation checks.
                 type: boolean
               useServerSideApply:
                 description: UseServerSideApply controls whether to use server-side
@@ -16731,18 +16699,6 @@ spec:
                                           checks are applied at the pod level only.
                                           Wildcards (''*'' and ''?'') are allowed.
                                           See: https://kubernetes.io/docs/concepts/containers/images.'
-                                        items:
-                                          type: string
-                                        type: array
-                                      restrictedField:
-                                        description: RestrictedField selects the field
-                                          for the given Pod Security Standard control.
-                                          When not set, all restricted fields for
-                                          the control are selected.
-                                        type: string
-                                      values:
-                                        description: Values defines the allowed values
-                                          that can be excluded.
                                         items:
                                           type: string
                                         type: array
