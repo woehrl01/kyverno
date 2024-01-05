@@ -8,6 +8,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/apis/v1alpha1"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/command"
+	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/deprecations"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/output/color"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/output/table"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/report"
@@ -30,7 +31,7 @@ func Command() *cobra.Command {
 		Args:         cobra.MinimumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, dirPath []string) (err error) {
-			color.Init(removeColor)
+			color.InitColors(removeColor)
 			store.SetRegistryAccess(registryAccess)
 			return testCommandExecute(cmd.OutOrStdout(), dirPath, fileName, gitBranch, testCase, failOnly, detailedResults)
 		},
@@ -104,6 +105,7 @@ func testCommandExecute(
 	var table table.Table
 	for _, test := range tests {
 		if test.Err == nil {
+			deprecations.CheckTest(out, test.Path, test.Test)
 			// filter results
 			var filteredResults []v1alpha1.TestResult
 			for _, res := range test.Test.Results {

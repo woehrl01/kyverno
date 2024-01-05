@@ -51,6 +51,7 @@ type PolicyProcessor struct {
 	AuditWarn                 bool
 	Subresources              []v1alpha1.Subresource
 	Out                       io.Writer
+	RegistryClient            registryclient.Client
 }
 
 func (p *PolicyProcessor) ApplyPoliciesOnResource() ([]engineapi.EngineResponse, error) {
@@ -62,13 +63,13 @@ func (p *PolicyProcessor) ApplyPoliciesOnResource() ([]engineapi.EngineResponse,
 	if p.Client != nil {
 		client = adapters.Client(p.Client)
 	}
-	rclient := registryclient.NewOrDie()
+
 	eng := engine.NewEngine(
 		cfg,
 		config.NewDefaultMetricsConfiguration(),
 		jmespath.New(cfg),
 		client,
-		factories.DefaultRegistryClientFactory(adapters.RegistryClient(rclient), nil),
+		factories.DefaultRegistryClientFactory(adapters.RegistryClient(p.RegistryClient), nil),
 		imageverifycache.DisabledImageVerifyCache(),
 		store.ContextLoaderFactory(nil),
 		nil,
@@ -234,8 +235,7 @@ func (p *PolicyProcessor) makePolicyContext(
 		return nil, fmt.Errorf("failed to create policy context (%w)", err)
 	}
 	if operation == kyvernov1.Update {
-		resource := resource.DeepCopy()
-		policyContext = policyContext.WithOldResource(*resource)
+		policyContext = policyContext.WithOldResource(resource)
 		if err := policyContext.JSONContext().AddOldResource(resource.Object); err != nil {
 			return nil, fmt.Errorf("failed to update old resource in json context (%w)", err)
 		}

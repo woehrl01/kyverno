@@ -6,7 +6,9 @@ import (
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/kyverno/kyverno/api/kyverno/v1beta1"
+	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/deprecations"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/log"
+	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/output/pluralize"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/path"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/policy"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/processor"
@@ -16,12 +18,12 @@ import (
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/userinfo"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/utils/common"
 	"github.com/kyverno/kyverno/cmd/cli/kubectl-kyverno/variables"
-	"github.com/kyverno/kyverno/ext/output/pluralize"
 	"github.com/kyverno/kyverno/pkg/autogen"
 	"github.com/kyverno/kyverno/pkg/background/generate"
 	"github.com/kyverno/kyverno/pkg/clients/dclient"
 	"github.com/kyverno/kyverno/pkg/config"
 	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
+	"github.com/kyverno/kyverno/pkg/registryclient"
 	policyvalidation "github.com/kyverno/kyverno/pkg/validation/policy"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -37,7 +39,7 @@ func runTest(out io.Writer, testCase test.TestCase, auditWarn bool) ([]engineapi
 	var dClient dclient.Interface
 	// values/variables
 	fmt.Fprintln(out, "  Loading values/variables", "...")
-	vars, err := variables.New(testCase.Fs, testDir, testCase.Test.Variables, testCase.Test.Values)
+	vars, err := variables.New(out, testCase.Fs, testDir, testCase.Test.Variables, testCase.Test.Values)
 	if err != nil {
 		err = fmt.Errorf("failed to decode yaml (%w)", err)
 		return nil, err
@@ -50,6 +52,7 @@ func runTest(out io.Writer, testCase test.TestCase, auditWarn bool) ([]engineapi
 		if err != nil {
 			return nil, fmt.Errorf("Error: failed to load request info (%s)", err)
 		}
+		deprecations.CheckUserInfo(out, testCase.Test.UserInfo, info)
 		userInfo = &info.RequestInfo
 	}
 	// policies
@@ -88,30 +91,21 @@ func runTest(out io.Writer, testCase test.TestCase, auditWarn bool) ([]engineapi
 				}
 				if rule.Name == res.Rule {
 					if rule.HasGenerate() {
-						if len(rule.Generation.CloneList.Kinds) != 0 { // cloneList
-							// We cannot cast this to an unstructured object because it doesn't have a kind.
+						ruleUnstr, err := generate.GetUnstrRule(rule.Generation.DeepCopy())
+						if err != nil {
+							fmt.Fprintf(out, "    Error: failed to get unstructured rule (%s)\n", err)
+							break
+						}
+						genClone, _, err := unstructured.NestedMap(ruleUnstr.Object, "clone")
+						if err != nil {
+							fmt.Fprintf(out, "    Error: failed to read data (%s)\n", err)
+							break
+						}
+						if len(genClone) != 0 {
 							if isGit {
 								ruleToCloneSourceResource[rule.Name] = res.CloneSourceResource
 							} else {
 								ruleToCloneSourceResource[rule.Name] = path.GetFullPath(res.CloneSourceResource, testDir)
-							}
-						} else { // clone or data
-							ruleUnstr, err := generate.GetUnstrRule(rule.Generation.DeepCopy())
-							if err != nil {
-								fmt.Fprintf(out, "    Error: failed to get unstructured rule (%s)\n", err)
-								break
-							}
-							genClone, _, err := unstructured.NestedMap(ruleUnstr.Object, "clone")
-							if err != nil {
-								fmt.Fprintf(out, "    Error: failed to read data (%s)\n", err)
-								break
-							}
-							if len(genClone) != 0 {
-								if isGit {
-									ruleToCloneSourceResource[rule.Name] = res.CloneSourceResource
-								} else {
-									ruleToCloneSourceResource[rule.Name] = path.GetFullPath(res.CloneSourceResource, testDir)
-								}
 							}
 						}
 					}
@@ -131,10 +125,13 @@ func runTest(out io.Writer, testCase test.TestCase, auditWarn bool) ([]engineapi
 		}
 		validPolicies = append(validPolicies, pol)
 	}
+	rclient := store.GetRegistryClient()
+	if rclient == nil {
+		rclient = registryclient.NewOrDie()
+	}
 	// execute engine
 	var engineResponses []engineapi.EngineResponse
 	var resultCounts processor.ResultCounts
-
 	for _, resource := range uniques {
 		processor := processor.PolicyProcessor{
 			Policies:                  validPolicies,
@@ -149,6 +146,7 @@ func runTest(out io.Writer, testCase test.TestCase, auditWarn bool) ([]engineapi
 			Client:                    dClient,
 			Subresources:              vars.Subresources(),
 			Out:                       out,
+			RegistryClient:            rclient,
 		}
 		ers, err := processor.ApplyPoliciesOnResource()
 		if err != nil {

@@ -16,50 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       results: ${{ steps.parse-results.outputs.results }}
-    steps:    
-    - name: Get Branches Name
-      id: get-branches
-      run: |
-        all_branches=$(curl -s https://api.github.com/repos/${{ env.IMAGE_NAME }}/branches | jq -r '.[].name | select(startswith("release-"))' | sort -rV | head -n 2)
-        releasebranch1=$(echo "$all_branches" | sed -n 1p)
-        releasebranch2=$(echo "$all_branches" | sed -n 2p)
-
-        echo "releasebranch1=$releasebranch1" >> $GITHUB_OUTPUT
-        echo "releasebranch2=$releasebranch2" >> $GITHUB_OUTPUT
-    
-    - name: Scan for vulnerabilities in latest image
-      uses: aquasecurity/trivy-action@f78e9ecf42a1271402d4f484518b9313235990e1 # v0.8.0 (Trivy v0.34.0)
-
+    steps:
+    - name: Scan for vulnerabilities
+      uses: aquasecurity/trivy-action@fbd16365eb88e12433951383f5e99bd901fc618f # v0.8.0 (Trivy v0.34.0)
       with: 
         image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         format: json
         ignore-unfixed: false
         severity: HIGH,CRITICAL
-        output: scan1.json
-
-    - name: Scan for vulnerabilities in latest-1 image
-      uses: aquasecurity/trivy-action@f78e9ecf42a1271402d4f484518b9313235990e1 # v0.8.0 (Trivy v0.34.0)
-      with: 
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get-branches.outputs.releasebranch1 }}
-        format: json
-        ignore-unfixed: false
-        severity: HIGH,CRITICAL
-        output: scan2.json
-
-    - name: Scan for vulnerabilities in latest-2 image
-      uses: aquasecurity/trivy-action@f78e9ecf42a1271402d4f484518b9313235990e1 # v0.8.0 (Trivy v0.34.0)
-      with: 
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get-branches.outputs.releasebranch2 }}
-        format: json
-        ignore-unfixed: false
-        severity: HIGH,CRITICAL
-        output: scan3.json
-
-    - name: Merge scan results
-      id: merge-results
-      run: |
-        jq -s add scan1.json scan2.json scan3.json > scan.json
-        cat scan.json
+        output: scan.json
 
     - name: Parse scan results
       id: parse-results
@@ -91,7 +56,7 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
       - name: Download scan
         uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
