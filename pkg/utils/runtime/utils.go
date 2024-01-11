@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"context"
-
 	"github.com/go-logr/logr"
 	"github.com/kyverno/kyverno/pkg/config"
 	"github.com/kyverno/kyverno/pkg/tls"
@@ -14,8 +12,8 @@ import (
 
 type Runtime interface {
 	IsDebug() bool
-	IsReady(ctx context.Context) bool
-	IsLive(ctx context.Context) bool
+	IsReady() bool
+	IsLive() bool
 	IsRollingUpdate() bool
 	IsGoingDown() bool
 }
@@ -45,12 +43,12 @@ func (c *runtime) IsDebug() bool {
 	return c.serverIP != ""
 }
 
-func (c *runtime) IsLive(context.Context) bool {
+func (c *runtime) IsLive() bool {
 	return true
 }
 
-func (c *runtime) IsReady(ctx context.Context) bool {
-	return c.validateCertificates(ctx)
+func (c *runtime) IsReady() bool {
+	return c.validateCertificates()
 }
 
 func (c *runtime) IsRollingUpdate() bool {
@@ -95,8 +93,8 @@ func (c *runtime) getDeployment() (*appsv1.Deployment, error) {
 	return c.deploymentLister.Deployments(config.KyvernoNamespace()).Get(config.KyvernoDeploymentName())
 }
 
-func (c *runtime) validateCertificates(ctx context.Context) bool {
-	validity, err := c.certValidator.ValidateCert(ctx)
+func (c *runtime) validateCertificates() bool {
+	validity, err := c.certValidator.ValidateCert()
 	if err != nil {
 		c.logger.Error(err, "failed to validate certificates")
 		return false

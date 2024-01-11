@@ -42,33 +42,37 @@ rules:
     resources:
       - clustercleanuppolicies
       - cleanuppolicies
-    verbs:
-      - list
-      - watch
-  - apiGroups:
-      - kyverno.io
-    resources:
-      - clustercleanuppolicies/status
-      - cleanuppolicies/status
-    verbs:
-      - update
-  - apiGroups:
-      - ''
-    resources:
-      - configmaps
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ''
-      - events.k8s.io
-    resources:
-      - events
+      - clustercleanuppolicies/*
+      - cleanuppolicies/*
     verbs:
       - create
+      - delete
+      - get
+      - list
       - patch
       - update
+      - watch
+      - deletecollection
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+    - ''
+    - events.k8s.io
+    resources:
+    - events
+    verbs:
+    - create
+    - patch
+    - update
   - apiGroups:
       - authorization.k8s.io
     resources:
@@ -84,7 +88,15 @@ metadata:
   labels:
     {{- include "kyverno.cleanup-controller.labels" $ | nindent 4 }}
 rules:
-  {{- toYaml . | nindent 2 }}
+  {{- range . }}
+  - apiGroups:
+      {{- toYaml .apiGroups | nindent 6 }}
+    resources:
+      {{- toYaml .resources | nindent 6 }}
+    verbs:
+      - delete
+      - list
+  {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

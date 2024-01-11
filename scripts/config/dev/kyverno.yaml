@@ -29,9 +29,6 @@ cleanupController:
             - ''
           resources:
             - pods
-          verbs:
-            - list
-            - delete
 
   serviceMonitor:
     enabled: true

@@ -1,112 +1,95 @@
----
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: validate-empty-dir-mountpath
 spec:
-  admission: true
-  background: true
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
+  - name: check-mount-paths
+    match:
+      resources:
+        kinds:
           - Pod
-    name: check-mount-paths
     validate:
+      message: "emptyDir volumes must be mounted under /tmp"
       foreach:
-      - elementScope: false
-        list: request.object.spec.volumes[?contains(keys(@), 'emptyDir')]
+      - list: "request.object.spec.volumes[?contains(keys(@), 'emptyDir')]"
+        elementScope: false
         pattern:
           spec:
             containers:
-            - name: '*'
-              volumeMounts:
-              - (name): '{{element.name}}'
-                mountPath: /tmp/*
-      message: emptyDir volumes must be mounted under /tmp
-  validationFailureAction: Audit
+              - name: "*"
+                volumeMounts:
+                - (name): "{{element.name}}"
+                  mountPath: "/tmp/*"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: validate-empty-dir-resources
 spec:
-  admission: true
-  background: true
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
+  - name: check-resources
+    match:
+      resources:
+        kinds:
           - Pod
-    name: check-resources
     validate:
+      message: "ephemeral-storage requests and limits are required for emptyDir volumes"
       foreach:
-      - elementScope: false
-        list: request.object.spec.volumes[?contains(keys(@), 'emptyDir')]
+      - list: "request.object.spec.volumes[?contains(keys(@), 'emptyDir')]"
+        elementScope: false
         pattern:
           spec:
             containers:
-            - resources:
-                limits:
-                  ephemeral-storage: ?*
+            - volumeMounts:
+              - <(name): "{{element.name}}"
+              resources:
                 requests:
-                  ephemeral-storage: ?*
-              volumeMounts:
-              - <(name): '{{element.name}}'
-      message: ephemeral-storage requests and limits are required for emptyDir volumes
-  validationFailureAction: Audit
+                 ephemeral-storage: "?*"
+                limits:
+                  ephemeral-storage: "?*"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: validate-image-list
 spec:
-  admission: true
-  background: true
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
+  - name: check-image
+    match:
+      resources:
+        kinds:
           - Pod
-    name: check-image
     validate:
+      message: "images must begin with ghcr.io"
       foreach:
-      - deny:
+      - list: "request.object.spec.containers[].image"
+        deny:
           conditions:
             all:
-            - key: '{{ element }}'
-              operator: NotEquals
-              value: ghcr.io
-        list: request.object.spec.containers[].image
-      message: images must begin with ghcr.io
-  validationFailureAction: Audit
+              - key: '{{ element }}'
+                operator: NotEquals
+                value: 'ghcr.io'
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: validate-image-list-error
 spec:
-  admission: true
-  background: true
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
+  - name: check-image
+    match:
+      resources:
+        kinds:
           - Pod
-    name: check-image
     validate:
+      message: "images must begin with ghcr.io"
       foreach:
-      - deny:
+      - list: "request.object.spec.containers[].image"
+        elementScope: true
+        deny:
           conditions:
             all:
-            - key: '{{ element }}'
-              operator: NotEquals
-              value: ghcr.io
-        elementScope: true
-        list: request.object.spec.containers[].image
-      message: images must begin with ghcr.io
-  validationFailureAction: Audit
+              - key: '{{ element }}'
+                operator: NotEquals
+                value: 'ghcr.io'

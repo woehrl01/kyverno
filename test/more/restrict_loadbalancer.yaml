@@ -1,21 +1,17 @@
----
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: no-loadbalancers
 spec:
-  admission: true
-  background: true
+  validationFailureAction: audit
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - Service
-    name: no-LoadBalancer
+  - name: no-LoadBalancer
+    match:
+      resources:
+        kinds:
+        - Service
     validate:
-      message: Service of type LoadBalancer is not allowed.
+      message: "Service of type LoadBalancer is not allowed."
       pattern:
         spec:
-          type: '!LoadBalancer'
-  validationFailureAction: Audit
+          type: "!LoadBalancer"

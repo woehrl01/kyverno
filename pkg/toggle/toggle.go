@@ -21,27 +21,17 @@ const (
 	EnableDeferredLoadingDescription = "enable deferred loading of context variables"
 	enableDeferredLoadingEnvVar      = "FLAG_ENABLE_DEFERRED_LOADING"
 	defaultEnableDeferredLoading     = true
-	// generate validating admission policies
-	GenerateValidatingAdmissionPolicyFlagName    = "generateValidatingAdmissionPolicy"
-	GenerateValidatingAdmissionPolicyDescription = "Set the flag to 'true', to generate validating admission policies."
-	generateValidatingAdmissionPolicyEnvVar      = "FLAG_GENERATE_VALIDATING_ADMISSION_POLICY"
-	defaultGenerateValidatingAdmissionPolicy     = false
 )
 
 var (
-	ProtectManagedResources           = newToggle(defaultProtectManagedResources, protectManagedResourcesEnvVar)
-	ForceFailurePolicyIgnore          = newToggle(defaultForceFailurePolicyIgnore, forceFailurePolicyIgnoreEnvVar)
-	EnableDeferredLoading             = newToggle(defaultEnableDeferredLoading, enableDeferredLoadingEnvVar)
-	GenerateValidatingAdmissionPolicy = newToggle(defaultGenerateValidatingAdmissionPolicy, generateValidatingAdmissionPolicyEnvVar)
+	ProtectManagedResources  = newToggle(defaultProtectManagedResources, protectManagedResourcesEnvVar)
+	ForceFailurePolicyIgnore = newToggle(defaultForceFailurePolicyIgnore, forceFailurePolicyIgnoreEnvVar)
+	EnableDeferredLoading    = newToggle(defaultEnableDeferredLoading, enableDeferredLoadingEnvVar)
 )
 
-type ToggleFlag interface {
-	Parse(string) error
-}
-
 type Toggle interface {
-	ToggleFlag
-	enabled() bool
+	Enabled() bool
+	Parse(string) error
 }
 
 type toggle struct {
@@ -50,7 +40,7 @@ type toggle struct {
 	envVar       string
 }
 
-func newToggle(defaultValue bool, envVar string) Toggle {
+func newToggle(defaultValue bool, envVar string) *toggle {
 	return &toggle{
 		defaultValue: defaultValue,
 		envVar:       envVar,
@@ -66,7 +56,7 @@ func (t *toggle) Parse(in string) error {
 	}
 }
 
-func (t *toggle) enabled() bool {
+func (t *toggle) Enabled() bool {
 	if t.value != nil {
 		return *t.value
 	}

@@ -1,21 +1,17 @@
-apiVersion: cli.kyverno.io/v1alpha1
-kind: Test
-metadata:
-  name: kyverno-test.yaml
+name: test-simple
 policies:
-- policy.yaml
+  - policy.yaml
 resources:
-- resources.yaml
+  - resources.yaml
 results:
-- kind: Pod
-  policy: test-multiple-key
-  resources:
-  - test-resource-fail
-  result: fail
-  rule: test-multiple-key
-- kind: Pod
-  policy: test-multiple-key
-  resources:
-  - test-resource-pass
-  result: pass
-  rule: test-multiple-key
+  - policy: test-multiple-key
+    rule: test-multiple-key
+    resource: test-resource-pass
+    kind: Pod
+    status: pass
+  - policy: test-multiple-key
+    rule: test-multiple-key
+    resource: test-resource-fail
+    kind: Pod
+    status: fail
+  

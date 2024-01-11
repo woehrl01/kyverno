@@ -15,16 +15,24 @@ type CreateClient[T metav1.Object] interface {
 	Create(context.Context, T, metav1.CreateOptions) (T, error)
 }
 
-type GetClient[T metav1.Object] interface {
-	Get(context.Context, string, metav1.GetOptions) (T, error)
-}
-
 type UpdateClient[T metav1.Object] interface {
 	Update(context.Context, T, metav1.UpdateOptions) (T, error)
 }
 
-type DeleteClient interface {
+type DeleteClient[T metav1.Object] interface {
 	Delete(context.Context, string, metav1.DeleteOptions) error
+}
+
+type DeleteCollectionClient[T metav1.Object] interface {
+	DeleteCollection(context.Context, metav1.DeleteOptions, metav1.ListOptions) error
+}
+
+type GetClient[T metav1.Object] interface {
+	Get(context.Context, string, metav1.GetOptions) (T, error)
+}
+
+type WatchClient[T metav1.Object] interface {
+	Watch(context.Context, metav1.ListOptions) (watch.Interface, error)
 }
 
 type PatchClient[T metav1.Object] interface {
@@ -33,18 +41,12 @@ type PatchClient[T metav1.Object] interface {
 
 type ObjectClient[T metav1.Object] interface {
 	CreateClient[T]
-	GetClient[T]
 	UpdateClient[T]
-	DeleteClient
+	DeleteClient[T]
+	DeleteCollectionClient[T]
+	GetClient[T]
+	WatchClient[T]
 	PatchClient[T]
-}
-
-type DeleteCollectionClient interface {
-	DeleteCollection(context.Context, metav1.DeleteOptions, metav1.ListOptions) error
-}
-
-type WatchClient interface {
-	Watch(context.Context, metav1.ListOptions) (watch.Interface, error)
 }
 
 type ListClient[T any] interface {

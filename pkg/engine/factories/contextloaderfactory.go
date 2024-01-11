@@ -6,12 +6,14 @@ import (
 
 	"github.com/go-logr/logr"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"github.com/kyverno/kyverno/pkg/clients/dclient"
 	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
 	"github.com/kyverno/kyverno/pkg/engine/apicall"
 	enginecontext "github.com/kyverno/kyverno/pkg/engine/context"
 	"github.com/kyverno/kyverno/pkg/engine/context/loaders"
 	"github.com/kyverno/kyverno/pkg/engine/jmespath"
 	"github.com/kyverno/kyverno/pkg/logging"
+	"github.com/kyverno/kyverno/pkg/registryclient"
 	"github.com/kyverno/kyverno/pkg/toggle"
 )
 
@@ -52,8 +54,8 @@ type contextLoader struct {
 func (l *contextLoader) Load(
 	ctx context.Context,
 	jp jmespath.Interface,
-	client engineapi.RawClient,
-	rclientFactory engineapi.RegistryClientFactory,
+	client dclient.Interface,
+	rclient registryclient.Client,
 	contextEntries []kyvernov1.ContextEntry,
 	jsonContext enginecontext.Interface,
 ) error {
@@ -63,12 +65,12 @@ func (l *contextLoader) Load(
 		}
 	}
 	for _, entry := range contextEntries {
-		loader, err := l.newLoader(ctx, jp, client, rclientFactory, entry, jsonContext)
+		loader, err := l.newLoader(ctx, jp, client, rclient, entry, jsonContext)
 		if err != nil {
 			return fmt.Errorf("failed to create deferred loader for context entry %s", entry.Name)
 		}
 		if loader != nil {
-			if toggle.FromContext(ctx).EnableDeferredLoading() {
+			if toggle.EnableDeferredLoading.Enabled() {
 				if err := jsonContext.AddDeferredLoader(loader); err != nil {
 					return err
 				}
@@ -85,8 +87,8 @@ func (l *contextLoader) Load(
 func (l *contextLoader) newLoader(
 	ctx context.Context,
 	jp jmespath.Interface,
-	client engineapi.RawClient,
-	rclientFactory engineapi.RegistryClientFactory,
+	client dclient.Interface,
+	rclient registryclient.Client,
 	entry kyvernov1.ContextEntry,
 	jsonContext enginecontext.Interface,
 ) (enginecontext.DeferredLoader, error) {
@@ -95,7 +97,7 @@ func (l *contextLoader) newLoader(
 			ldr := loaders.NewConfigMapLoader(ctx, l.logger, entry, l.cmResolver, jsonContext)
 			return enginecontext.NewDeferredLoader(entry.Name, ldr, l.logger)
 		} else {
-			l.logger.Info("disabled loading of ConfigMap context entry", "name", entry.Name)
+			l.logger.Info("disabled loading of ConfigMap context entry %s", entry.Name)
 			return nil, nil
 		}
 	} else if entry.APICall != nil {
@@ -103,15 +105,15 @@ func (l *contextLoader) newLoader(
 			ldr := loaders.NewAPILoader(ctx, l.logger, entry, jsonContext, jp, client, l.apiCallConfig)
 			return enginecontext.NewDeferredLoader(entry.Name, ldr, l.logger)
 		} else {
-			l.logger.Info("disabled loading of APICall context entry", "name", entry.Name)
+			l.logger.Info("disabled loading of APICall context entry %s", entry.Name)
 			return nil, nil
 		}
 	} else if entry.ImageRegistry != nil {
-		if rclientFactory != nil {
-			ldr := loaders.NewImageDataLoader(ctx, l.logger, entry, jsonContext, jp, rclientFactory)
+		if rclient != nil {
+			ldr := loaders.NewImageDataLoader(ctx, l.logger, entry, jsonContext, jp, rclient)
 			return enginecontext.NewDeferredLoader(entry.Name, ldr, l.logger)
 		} else {
-			l.logger.Info("disabled loading of ImageRegistry context entry", "name", entry.Name)
+			l.logger.Info("disabled loading of ImageRegistry context entry %s", entry.Name)
 			return nil, nil
 		}
 	} else if entry.Variable != nil {

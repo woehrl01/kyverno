@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	openapiv2 "github.com/google/gnostic-models/openapiv2"
+	openapiv2 "github.com/google/gnostic/openapiv2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -65,7 +65,7 @@ func (c *fakeDiscoveryClient) getGVR(resource string) (schema.GroupVersionResour
 			return gvr, nil
 		}
 	}
-	return schema.GroupVersionResource{}, errors.New("not found")
+	return schema.GroupVersionResource{}, errors.New("no found")
 }
 
 func (c *fakeDiscoveryClient) GetGVKFromGVR(schema.GroupVersionResource) (schema.GroupVersionKind, error) {
@@ -78,26 +78,17 @@ func (c *fakeDiscoveryClient) GetGVRFromGVK(gvk schema.GroupVersionKind) (schema
 }
 
 func (c *fakeDiscoveryClient) FindResources(group, version, kind, subresource string) (map[TopLevelApiDescription]metav1.APIResource, error) {
-	r := strings.ToLower(kind) + "s"
-	for _, resource := range c.registeredResources {
-		if resource.Resource == r {
-			return map[TopLevelApiDescription]metav1.APIResource{
-				{
-					GroupVersion: schema.GroupVersion{Group: resource.Group, Version: resource.Version},
-					Kind:         kind,
-					Resource:     r,
-					SubResource:  subresource,
-				}: {},
-			}, nil
-		}
-	}
-	return nil, fmt.Errorf("not found")
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (c *fakeDiscoveryClient) OpenAPISchema() (*openapiv2.Document, error) {
 	return nil, nil
 }
 
-func (c *fakeDiscoveryClient) CachedDiscoveryInterface() discovery.CachedDiscoveryInterface {
+func (c *fakeDiscoveryClient) DiscoveryCache() discovery.CachedDiscoveryInterface {
+	return nil
+}
+
+func (c *fakeDiscoveryClient) DiscoveryInterface() discovery.DiscoveryInterface {
 	return nil
 }

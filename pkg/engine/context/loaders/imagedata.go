@@ -6,21 +6,22 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/google/go-containerregistry/pkg/name"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
 	enginecontext "github.com/kyverno/kyverno/pkg/engine/context"
 	"github.com/kyverno/kyverno/pkg/engine/jmespath"
 	"github.com/kyverno/kyverno/pkg/engine/variables"
+	"github.com/kyverno/kyverno/pkg/registryclient"
 )
 
 type imageDataLoader struct {
-	ctx            context.Context //nolint:containedctx
-	logger         logr.Logger
-	entry          kyvernov1.ContextEntry
-	enginectx      enginecontext.Interface
-	jp             jmespath.Interface
-	rclientFactory engineapi.RegistryClientFactory
-	data           []byte
+	ctx       context.Context //nolint:containedctx
+	logger    logr.Logger
+	entry     kyvernov1.ContextEntry
+	enginectx enginecontext.Interface
+	jp        jmespath.Interface
+	rclient   registryclient.Client
+	data      []byte
 }
 
 func NewImageDataLoader(
@@ -29,15 +30,15 @@ func NewImageDataLoader(
 	entry kyvernov1.ContextEntry,
 	enginectx enginecontext.Interface,
 	jp jmespath.Interface,
-	rclientFactory engineapi.RegistryClientFactory,
+	rclient registryclient.Client,
 ) enginecontext.Loader {
 	return &imageDataLoader{
-		ctx:            ctx,
-		logger:         logger,
-		entry:          entry,
-		enginectx:      enginectx,
-		jp:             jp,
-		rclientFactory: rclientFactory,
+		ctx:       ctx,
+		logger:    logger,
+		entry:     entry,
+		enginectx: enginectx,
+		jp:        jp,
+		rclient:   rclient,
 	}
 }
 
@@ -86,12 +87,7 @@ func (idl *imageDataLoader) fetchImageData() (interface{}, error) {
 		return nil, fmt.Errorf("failed to substitute variables in context entry %s %s: %v", entry.Name, entry.ImageRegistry.JMESPath, err)
 	}
 
-	client, err := idl.rclientFactory.GetClient(idl.ctx, entry.ImageRegistry.ImageRegistryCredentials)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get registry client %s: %v", entry.Name, err)
-	}
-
-	imageData, err := idl.fetchImageDataMap(client, refString)
+	imageData, err := idl.fetchImageDataMap(idl.rclient, refString)
 	if err != nil {
 		return nil, err
 	}
@@ -107,32 +103,47 @@ func (idl *imageDataLoader) fetchImageData() (interface{}, error) {
 }
 
 // FetchImageDataMap fetches image information from the remote registry.
-func (idl *imageDataLoader) fetchImageDataMap(client engineapi.ImageDataClient, ref string) (interface{}, error) {
-	desc, err := client.ForRef(context.Background(), ref)
+func (idl *imageDataLoader) fetchImageDataMap(client registryclient.Client, ref string) (interface{}, error) {
+	desc, err := client.FetchImageDescriptor(context.Background(), ref)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch image descriptor: %s, error: %v", ref, err)
+		return nil, err
 	}
-
+	parsedRef, err := name.ParseReference(ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse image reference: %s, error: %v", ref, err)
+	}
+	image, err := desc.Image()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve image reference: %s, error: %v", ref, err)
+	}
+	// We need to use the raw config and manifest to avoid dropping unknown keys
+	// which are not defined in GGCR structs.
+	rawManifest, err := image.RawManifest()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch manifest for image reference: %s, error: %v", ref, err)
+	}
 	var manifest interface{}
-	if err := json.Unmarshal(desc.Manifest, &manifest); err != nil {
+	if err := json.Unmarshal(rawManifest, &manifest); err != nil {
 		return nil, fmt.Errorf("failed to decode manifest for image reference: %s, error: %v", ref, err)
 	}
-
+	rawConfig, err := image.RawConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch config for image reference: %s, error: %v", ref, err)
+	}
 	var configData interface{}
-	if err := json.Unmarshal(desc.Config, &configData); err != nil {
+	if err := json.Unmarshal(rawConfig, &configData); err != nil {
 		return nil, fmt.Errorf("failed to decode config for image reference: %s, error: %v", ref, err)
 	}
 
 	data := map[string]interface{}{
-		"image":         desc.Image,
-		"resolvedImage": desc.ResolvedImage,
-		"registry":      desc.Registry,
-		"repository":    desc.Repository,
-		"identifier":    desc.Identifier,
+		"image":         ref,
+		"resolvedImage": fmt.Sprintf("%s@%s", parsedRef.Context().Name(), desc.Digest.String()),
+		"registry":      parsedRef.Context().RegistryStr(),
+		"repository":    parsedRef.Context().RepositoryStr(),
+		"identifier":    parsedRef.Identifier(),
 		"manifest":      manifest,
 		"configData":    configData,
 	}
-
 	// we need to do the conversion from struct types to an interface type so that jmespath
 	// evaluation works correctly. go-jmespath cannot handle function calls like max/sum
 	// for types like integers for eg. the conversion to untyped allows the stdlib json
@@ -147,6 +158,5 @@ func (idl *imageDataLoader) fetchImageDataMap(client engineapi.ImageDataClient, 
 	if err != nil {
 		return nil, err
 	}
-
 	return untyped, nil
 }

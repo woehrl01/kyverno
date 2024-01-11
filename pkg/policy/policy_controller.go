@@ -3,7 +3,6 @@ package policy
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -26,6 +25,7 @@ import (
 	engineutils "github.com/kyverno/kyverno/pkg/utils/engine"
 	kubeutils "github.com/kyverno/kyverno/pkg/utils/kube"
 	policyvalidation "github.com/kyverno/kyverno/pkg/validation/policy"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -33,9 +33,10 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1informers "k8s.io/client-go/informers/core/v1"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/events"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -59,7 +60,7 @@ type policyController struct {
 	npInformer kyvernov1informers.PolicyInformer
 
 	eventGen      event.Interface
-	eventRecorder events.EventRecorder
+	eventRecorder record.EventRecorder
 
 	// Policies that need to be synced
 	queue workqueue.RateLimitingInterface
@@ -107,15 +108,10 @@ func NewPolicyController(
 	jp jmespath.Interface,
 ) (*policyController, error) {
 	// Event broad caster
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(log.V(5).Info)
 	eventInterface := client.GetEventsInterface()
-	eventBroadcaster := events.NewBroadcaster(
-		&events.EventSinkImpl{
-			Interface: eventInterface,
-		},
-	)
-	eventBroadcaster.StartStructuredLogging(0)
-	stopCh := make(chan struct{})
-	eventBroadcaster.StartRecordingToSink(stopCh)
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: eventInterface})
 
 	pc := policyController{
 		client:          client,
@@ -124,7 +120,7 @@ func NewPolicyController(
 		pInformer:       pInformer,
 		npInformer:      npInformer,
 		eventGen:        eventGen,
-		eventRecorder:   eventBroadcaster.NewRecorder(scheme.Scheme, "policy_controller"),
+		eventRecorder:   eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "policy_controller"}),
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
 		configuration:   configuration,
 		reconcilePeriod: reconcilePeriod,
@@ -145,26 +141,16 @@ func NewPolicyController(
 
 func (pc *policyController) canBackgroundProcess(p kyvernov1.PolicyInterface) bool {
 	logger := pc.log.WithValues("policy", p.GetName())
-	if !p.GetSpec().HasGenerate() && !p.GetSpec().HasMutateExisting() {
-		logger.V(4).Info("policy does not have background rules for reconciliation")
-		return false
+	if !p.BackgroundProcessingEnabled() {
+		if !p.GetSpec().HasGenerate() && !p.GetSpec().IsMutateExisting() {
+			logger.V(4).Info("background processing is disabled")
+			return false
+		}
 	}
 
 	if err := policyvalidation.ValidateVariables(p, true); err != nil {
 		logger.V(4).Info("policy cannot be processed in the background")
 		return false
-	}
-
-	if p.GetSpec().HasMutateExisting() {
-		val := os.Getenv("BACKGROUND_SCAN_INTERVAL")
-		interval, err := time.ParseDuration(val)
-		if err != nil {
-			logger.V(4).Info("failed to parse BACKGROUND_SCAN_INTERVAL env variable, falling to default 1h", "msg", err.Error())
-			interval = time.Hour
-		}
-		if p.GetCreationTimestamp().Add(interval).After(time.Now()) {
-			return p.GetSpec().GetMutateExistingOnPolicyUpdate()
-		}
 	}
 
 	return true
@@ -405,7 +391,7 @@ func (pc *policyController) handleUpdateRequest(ur *kyvernov1beta1.UpdateRequest
 
 	for _, ruleResponse := range engineResponse.PolicyResponse.Rules {
 		if ruleResponse.Status() != engineapi.RuleStatusPass {
-			pc.log.V(4).Info("skip creating URs on policy update", "policy", policy.GetName(), "rule", rule.Name, "rule.Status", ruleResponse.Status())
+			pc.log.Error(err, "can not create new UR on policy update", "policy", policy.GetName(), "rule", rule.Name, "rule.Status", ruleResponse.Status())
 			continue
 		}
 

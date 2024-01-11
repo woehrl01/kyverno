@@ -1,16 +1,14 @@
-apiVersion: cli.kyverno.io/v1alpha1
-kind: Test
-metadata:
-  name: kyverno-test.yaml
+---
+name: enforce-pod-name
 policies:
-- policy.yaml
+  - policy.yaml
 resources:
-- resource.yaml
-results:
-- kind: Pod
-  policy: enforce-pod-name
-  resources:
-  - test1/test-nginx
-  result: pass
-  rule: validate-name
+  - resource.yaml
 variables: value.yaml
+results:
+  - policy: enforce-pod-name
+    rule: validate-name
+    resource: test-nginx
+    kind: Pod
+    namespace: test1
+    result: pass

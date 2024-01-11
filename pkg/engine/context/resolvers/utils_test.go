@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyverno/kyverno/api/kyverno"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -16,7 +15,7 @@ func TestGetCacheSelector(t *testing.T) {
 		wantErr bool
 	}{{
 		name: "ok",
-		want: kyverno.LabelCacheEnabled,
+		want: LabelCacheKey,
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

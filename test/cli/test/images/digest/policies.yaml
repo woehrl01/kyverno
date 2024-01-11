@@ -2,24 +2,19 @@
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
+  name: require-image-digest
   annotations:
     pod-policies.kyverno.io/autogen-controllers: none
-  name: require-image-digest
 spec:
-  admission: true
-  background: true
   rules:
-  - match:
-      any:
-      - resources:
+    - name: check-digest
+      match:
+        resources:
           kinds:
-          - Pod
-    name: check-digest
-    verifyImages:
-    - imageReferences:
-      - '*'
-      mutateDigest: false
-      required: false
-      useCache: true
-      verifyDigest: true
-  validationFailureAction: Audit
+            - Pod
+      verifyImages:
+        - imageReferences:
+            - "*"
+          verifyDigest: true
+
+

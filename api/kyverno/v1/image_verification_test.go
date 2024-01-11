@@ -126,24 +126,7 @@ func Test_ImageVerification(t *testing.T) {
 			},
 		},
 		{
-			name: "static key invalid signature algorithm attestor",
-			subject: ImageVerification{
-				ImageReferences: []string{"*"},
-				Attestors: []AttestorSet{
-					{Entries: []Attestor{{
-						Keys: &StaticKeyAttestor{PublicKeys: "bla", SignatureAlgorithm: "sha1"},
-					}}},
-				},
-			},
-			errors: func(i *ImageVerification) field.ErrorList {
-				return field.ErrorList{
-					field.Invalid(path.Child("attestors").Index(0).Child("entries").Index(0).Child("keys"),
-						i.Attestors[0].Entries[0].Keys, "Invalid signature algorithm provided"),
-				}
-			},
-		},
-		{
-			name: "valid static key default signature algorithm attestor",
+			name: "valid static key attestor",
 			subject: ImageVerification{
 				ImageReferences: []string{"*"},
 				Attestors: []AttestorSet{
@@ -154,45 +137,12 @@ func Test_ImageVerification(t *testing.T) {
 			},
 		},
 		{
-			name: "valid static key sha224 signature algorithm attestor",
-			subject: ImageVerification{
-				ImageReferences: []string{"*"},
-				Attestors: []AttestorSet{
-					{Entries: []Attestor{{
-						Keys: &StaticKeyAttestor{PublicKeys: "bla", SignatureAlgorithm: "sha224"},
-					}}},
-				},
-			},
-		},
-		{
-			name: "valid static key sah256 signature algorithm attestor",
-			subject: ImageVerification{
-				ImageReferences: []string{"*"},
-				Attestors: []AttestorSet{
-					{Entries: []Attestor{{
-						Keys: &StaticKeyAttestor{PublicKeys: "bla", SignatureAlgorithm: "sha256"},
-					}}},
-				},
-			},
-		},
-		{
-			name: "valid static key sha384 signature algorithm attestor",
-			subject: ImageVerification{
-				ImageReferences: []string{"*"},
-				Attestors: []AttestorSet{
-					{Entries: []Attestor{{
-						Keys: &StaticKeyAttestor{PublicKeys: "bla", SignatureAlgorithm: "sha384"},
-					}}},
-				},
-			},
-		},
-		{
 			name: "invalid keyless attestor",
 			subject: ImageVerification{
 				ImageReferences: []string{"*"},
 				Attestors: []AttestorSet{
 					{Entries: []Attestor{{
-						Keyless: &KeylessAttestor{Rekor: &Rekor{}, Issuer: "", Subject: ""},
+						Keyless: &KeylessAttestor{Rekor: &CTLog{}, Issuer: "", Subject: ""},
 					}}},
 				},
 			},
@@ -209,7 +159,7 @@ func Test_ImageVerification(t *testing.T) {
 				ImageReferences: []string{"*"},
 				Attestors: []AttestorSet{
 					{Entries: []Attestor{{
-						Keyless: &KeylessAttestor{Rekor: &Rekor{URL: "https://rekor.sigstore.dev"}, Issuer: "bla", Subject: "bla"},
+						Keyless: &KeylessAttestor{Rekor: &CTLog{URL: "https://rekor.sigstore.dev"}, Issuer: "bla", Subject: "bla"},
 					}}},
 				},
 			},

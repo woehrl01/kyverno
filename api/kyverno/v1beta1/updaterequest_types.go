@@ -25,6 +25,7 @@ import (
 
 // UpdateRequestStatus defines the observed state of UpdateRequest
 type UpdateRequestStatus struct {
+	// Handler represents the instance ID that handles the UR
 	// Deprecated
 	Handler string `json:"handler,omitempty" yaml:"handler,omitempty"`
 
@@ -38,14 +39,11 @@ type UpdateRequestStatus struct {
 	// This will track the resources that are updated by the generate Policy.
 	// Will be used during clean up resources.
 	GeneratedResources []kyvernov1.ResourceSpec `json:"generatedResources,omitempty" yaml:"generatedResources,omitempty"`
-
-	RetryCount int `json:"retryCount,omitempty" yaml:"retryCount,omitempty"`
 }
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Policy",type="string",JSONPath=".spec.policy"
 // +kubebuilder:printcolumn:name="RuleType",type="string",JSONPath=".spec.requestType"
@@ -115,12 +113,12 @@ type RequestInfo struct {
 	// Roles is a list of possible role send the request.
 	// +nullable
 	// +optional
-	Roles []string `json:"roles,omitempty" yaml:"roles,omitempty"`
+	Roles []string `json:"roles" yaml:"roles"`
 
 	// ClusterRoles is a list of possible clusterRoles send the request.
 	// +nullable
 	// +optional
-	ClusterRoles []string `json:"clusterRoles,omitempty" yaml:"clusterRoles,omitempty"`
+	ClusterRoles []string `json:"clusterRoles" yaml:"clusterRoles"`
 
 	// UserInfo is the userInfo carried in the admission request.
 	// +optional
@@ -152,8 +150,7 @@ const (
 	Skip UpdateRequestState = "Skip"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:object:root=true
+//+kubebuilder:object:root=true
 
 // UpdateRequestList contains a list of UpdateRequest
 type UpdateRequestList struct {

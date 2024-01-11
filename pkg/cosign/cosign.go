@@ -12,32 +12,27 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/in-toto/in-toto-golang/in_toto"
-	"github.com/kyverno/kyverno/ext/wildcard"
 	"github.com/kyverno/kyverno/pkg/images"
 	"github.com/kyverno/kyverno/pkg/tracing"
 	datautils "github.com/kyverno/kyverno/pkg/utils/data"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/cosign/attestation"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/remote"
-	sigs "github.com/sigstore/cosign/v2/pkg/signature"
-	rekorclient "github.com/sigstore/rekor/pkg/client"
+	wildcard "github.com/kyverno/kyverno/pkg/utils/wildcard"
+	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
+	"github.com/sigstore/cosign/cmd/cosign/cli/options"
+	"github.com/sigstore/cosign/cmd/cosign/cli/rekor"
+	"github.com/sigstore/cosign/pkg/cosign"
+	"github.com/sigstore/cosign/pkg/cosign/attestation"
+	"github.com/sigstore/cosign/pkg/oci"
+	"github.com/sigstore/cosign/pkg/oci/remote"
+	sigs "github.com/sigstore/cosign/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
-	"github.com/sigstore/sigstore/pkg/fulcioroots"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
-	"github.com/sigstore/sigstore/pkg/tuf"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 )
 
-var signatureAlgorithmMap = map[string]crypto.Hash{
-	"":       crypto.SHA256,
-	"sha224": crypto.SHA224,
-	"sha256": crypto.SHA256,
-	"sha384": crypto.SHA384,
-	"sha512": crypto.SHA512,
-}
+// ImageSignatureRepository is an alternate signature repository
+var ImageSignatureRepository string
 
 func NewVerifier() images.ImageVerifier {
 	return &cosignVerifier{}
@@ -84,7 +79,7 @@ func (v *cosignVerifier) VerifySignature(ctx context.Context, opts images.Option
 	}
 
 	var digest string
-	if opts.Type == "" {
+	if opts.PredicateType == "" {
 		digest, err = extractDigest(opts.ImageRef, payload)
 		if err != nil {
 			return nil, err
@@ -95,16 +90,22 @@ func (v *cosignVerifier) VerifySignature(ctx context.Context, opts images.Option
 }
 
 func buildCosignOptions(ctx context.Context, opts images.Options) (*cosign.CheckOpts, error) {
+	var remoteOpts []remote.Option
 	var err error
-
-	options, err := opts.Client.Options(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("constructing cosign remote options: %w", err)
+	signatureAlgorithmMap := map[string]crypto.Hash{
+		"":       crypto.SHA256,
+		"sha256": crypto.SHA256,
+		"sha512": crypto.SHA512,
 	}
-
+	ro := options.RegistryOptions{}
+	remoteOpts, err = ro.ClientOpts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("constructing client options: %w", err)
+	}
+	remoteOpts = append(remoteOpts, opts.RegistryClient.BuildRemoteOption(ctx))
 	cosignOpts := &cosign.CheckOpts{
 		Annotations:        map[string]interface{}{},
-		RegistryClientOpts: []remote.Option{remote.WithRemoteOptions(options...)},
+		RegistryClientOpts: remoteOpts,
 	}
 
 	if opts.FetchAttestations {
@@ -123,13 +124,9 @@ func buildCosignOptions(ctx context.Context, opts images.Options) (*cosign.Check
 
 	if opts.Key != "" {
 		if strings.HasPrefix(strings.TrimSpace(opts.Key), "-----BEGIN PUBLIC KEY-----") {
-			if signatureAlgorithm, ok := signatureAlgorithmMap[opts.SignatureAlgorithm]; ok {
-				cosignOpts.SigVerifier, err = decodePEM([]byte(opts.Key), signatureAlgorithm)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load public key from PEM: %w", err)
-				}
-			} else {
-				return nil, fmt.Errorf("invalid signature algorithm provided %s", opts.SignatureAlgorithm)
+			cosignOpts.SigVerifier, err = decodePEM([]byte(opts.Key), signatureAlgorithmMap[opts.SignatureAlgorithm])
+			if err != nil {
+				return nil, fmt.Errorf("failed to load public key from PEM: %w", err)
 			}
 		} else {
 			// this supports Kubernetes secrets and KMS
@@ -172,7 +169,7 @@ func buildCosignOptions(ctx context.Context, opts images.Options) (*cosign.Check
 		} else {
 			// if key, cert, and roots are not provided, default to Fulcio roots
 			if cosignOpts.RootCerts == nil {
-				roots, err := fulcioroots.Get()
+				roots, err := fulcio.GetRoots()
 				if err != nil {
 					return nil, fmt.Errorf("failed to get roots from fulcio: %w", err)
 				}
@@ -184,24 +181,10 @@ func buildCosignOptions(ctx context.Context, opts images.Options) (*cosign.Check
 		}
 	}
 
-	cosignOpts.IgnoreTlog = opts.IgnoreTlog
-	if !opts.IgnoreTlog {
-		cosignOpts.RekorClient, err = rekorclient.GetRekorClient(opts.RekorURL)
+	if opts.RekorURL != "" {
+		cosignOpts.RekorClient, err = rekor.NewClient(opts.RekorURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Rekor client from URL %s: %w", opts.RekorURL, err)
-		}
-
-		cosignOpts.RekorPubKeys, err = getRekorPubs(ctx, opts.RekorPubKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load Rekor public keys: %w", err)
-		}
-	}
-
-	cosignOpts.IgnoreSCT = opts.IgnoreSCT
-	if !opts.IgnoreSCT {
-		cosignOpts.CTLogPubKeys, err = getCTLogPubs(ctx, opts.CTLogsPubKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load CTLogs public keys: %w", err)
 		}
 	}
 
@@ -282,13 +265,13 @@ func (v *cosignVerifier) FetchAttestations(ctx context.Context, opts images.Opti
 	}
 
 	for _, signature := range signatures {
-		match, predicateType, err := matchType(signature, opts.Type)
+		match, predicateType, err := matchPredicateType(signature, opts.PredicateType)
 		if err != nil {
 			return nil, err
 		}
 
 		if !match {
-			logger.V(4).Info("type doesn't match, continue", "expected", opts.Type, "received", predicateType)
+			logger.V(4).Info("predicateType doesn't match, continue", "expected", opts.PredicateType, "received", predicateType)
 			continue
 		}
 
@@ -311,15 +294,15 @@ func (v *cosignVerifier) FetchAttestations(ctx context.Context, opts images.Opti
 	return &images.Response{Digest: digest, Statements: inTotoStatements}, nil
 }
 
-func matchType(sig oci.Signature, expectedType string) (bool, string, error) {
-	if expectedType != "" {
+func matchPredicateType(sig oci.Signature, expectedPredicateType string) (bool, string, error) {
+	if expectedPredicateType != "" {
 		statement, _, err := decodeStatement(sig)
 		if err != nil {
-			return false, "", fmt.Errorf("failed to decode type: %w", err)
+			return false, "", fmt.Errorf("failed to decode predicateType: %w", err)
 		}
 
-		if pType, ok := statement["type"]; ok {
-			if pType.(string) == expectedType {
+		if pType, ok := statement["predicateType"]; ok {
+			if pType.(string) == expectedPredicateType {
 				return true, pType.(string), nil
 			}
 		}
@@ -377,7 +360,6 @@ func decodeStatement(sig oci.Signature) (map[string]interface{}, string, error) 
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to decode statement %s: %w", string(pld), err)
 		}
-		decodedStatement["type"] = decodedStatement["predicateType"]
 
 		return decodedStatement, digest, nil
 	}
@@ -394,7 +376,7 @@ func decodePayload(payloadBase64 string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	if statement.Type != attestation.CosignCustomProvenanceV01 {
+	if statement.PredicateType != attestation.CosignCustomProvenanceV01 {
 		// This assumes that the following statements are JSON objects:
 		// - in_toto.PredicateSLSAProvenanceV01
 		// - in_toto.PredicateLinkV1
@@ -407,7 +389,7 @@ func decodePayload(payloadBase64 string) (map[string]interface{}, error) {
 }
 
 func decodeCosignCustomProvenanceV01(statement in_toto.Statement) (map[string]interface{}, error) {
-	if statement.Type != attestation.CosignCustomProvenanceV01 {
+	if statement.PredicateType != attestation.CosignCustomProvenanceV01 {
 		return nil, fmt.Errorf("invalid statement type %s", attestation.CosignCustomProvenanceV01)
 	}
 
@@ -584,28 +566,4 @@ func checkAnnotations(payload []payload.SimpleContainerImage, annotations map[st
 		}
 	}
 	return nil
-}
-
-func getRekorPubs(ctx context.Context, rekorPubKey string) (*cosign.TrustedTransparencyLogPubKeys, error) {
-	if rekorPubKey == "" {
-		return cosign.GetRekorPubs(ctx)
-	}
-
-	publicKeys := cosign.NewTrustedTransparencyLogPubKeys()
-	if err := publicKeys.AddTransparencyLogPubKey([]byte(rekorPubKey), tuf.Active); err != nil {
-		return nil, fmt.Errorf("failed to get rekor public keys: %w", err)
-	}
-	return &publicKeys, nil
-}
-
-func getCTLogPubs(ctx context.Context, ctlogPubKey string) (*cosign.TrustedTransparencyLogPubKeys, error) {
-	if ctlogPubKey == "" {
-		return cosign.GetCTLogPubs(ctx)
-	}
-
-	publicKeys := cosign.NewTrustedTransparencyLogPubKeys()
-	if err := publicKeys.AddTransparencyLogPubKey([]byte(ctlogPubKey), tuf.Active); err != nil {
-		return nil, fmt.Errorf("failed to get transparency log public keys: %w", err)
-	}
-	return &publicKeys, nil
 }

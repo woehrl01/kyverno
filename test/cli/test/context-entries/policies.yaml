@@ -1,13 +1,11 @@
----
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: example
 spec:
-  admission: true
-  background: true
   rules:
-  - context:
+  - name: defined-value
+    context:
     - name: example
       variable:
         value:
@@ -15,124 +13,117 @@ spec:
             nested:
               value: 1
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-value
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ example.test.nested.value }}'
-          operator: NotEquals
-          value: 1
-  - context:
+          - key: "{{ example.test.nested.value }}"
+            operator: NotEquals
+            value: 1
+  - name: defined-jmespath
+    context:
     - name: objName
       variable:
         jmesPath: request.object.metadata.name
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-jmespath
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ objName }}'
-          operator: NotEquals
-          value: example
-  - context:
+          - key: "{{ objName }}"
+            operator: NotEquals
+            value: "example"
+  - name: defined-jmespath-with-default
+    context:
     - name: objName
       variable:
-        default: example
         jmesPath: request.object.metadata.generateName
+        default: example
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-jmespath-with-default
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ objName }}'
-          operator: NotEquals
-          value: example
-  - context:
+          - key: "{{ objName }}"
+            operator: NotEquals
+            value: "example"
+  - name: defined-value-with-variable
+    context:
     - name: obj
       variable:
         value:
-          name: '{{ request.object.metadata.name }}'
+          name: "{{ request.object.metadata.name }}"
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-value-with-variable
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ obj.name }}'
-          operator: NotEquals
-          value: example
-  - context:
+          - key: "{{ obj.name }}"
+            operator: NotEquals
+            value: "example"
+  - name: defined-jmespath-with-default-variable
+    context:
     - name: objName
       variable:
-        default: '{{ request.object.metadata.name }}'
         jmesPath: request.object.metadata.generateName
+        default: "{{ request.object.metadata.name }}"
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-jmespath-with-default-variable
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ objName }}'
-          operator: NotEquals
-          value: example
-  - context:
+          - key: "{{ objName }}"
+            operator: NotEquals
+            value: "example"
+  - name: defined-value-jmespath
+    context:
     - name: objName
       variable:
-        jmesPath: name
         value:
-          name: '{{ request.object.metadata.name }}'
+          name: "{{ request.object.metadata.name }}"
+        jmesPath: name
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-value-jmespath
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ objName }}'
-          operator: NotEquals
-          value: example
-  - context:
+          - key: "{{ objName }}"
+            operator: NotEquals
+            value: "example"
+  - name: defined-value-jmespath-variable
+    context:
     - name: jpExpression
       variable:
         value: name
     - name: objName
       variable:
-        jmesPath: '{{ jpExpression }}'
         value:
-          name: '{{ request.object.metadata.name }}'
+          name: "{{ request.object.metadata.name }}"
+        jmesPath: "{{ jpExpression }}"
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: defined-value-jmespath-variable
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ objName }}'
-          operator: NotEquals
-          value: example
-  - context:
+          - key: "{{ objName }}"
+            operator: NotEquals
+            value: "example"
+  - name: value-override
+    context:
     - name: obj
       variable:
         value:
@@ -142,66 +133,63 @@ spec:
         value:
           name: example
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: value-override
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
           any:
-          - key: '{{ obj.name }}'
-            operator: NotEquals
-            value: example
-          - key: '{{ to_string(obj.notName) }}'
-            operator: NotEquals
-            value: "null"
-  - context:
+            - key: "{{ obj.name }}"
+              operator: NotEquals
+              value: "example"
+            - key: "{{ to_string(obj.notName) }}"
+              operator: NotEquals
+              value: 'null'
+  - name: wildcard-match
+    context:
     - name: obj
       variable:
         value:
-        - A=ATest
-        - B=BTest
+         - A=ATest
+         - B=BTest
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: wildcard-match
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: A=*
-          operator: AnyNotIn
-          value: '{{ obj }}'
-  - context:
+          - key: "A=*"
+            operator: AnyNotIn
+            value: "{{ obj }}"
+  - name: items
+    context:
     - name: obj
       variable:
-        jmesPath: items(@, 'key', 'value')
         value:
           a: 1
           b: 2
+        jmesPath: items(@, 'key', 'value')
     - name: expected
       variable:
         value:
-        - key: a
-          value: 1
-        - key: b
-          value: 2
+          - key: a
+            value: 1
+          - key: b
+            value: 2
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: items
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ obj }}'
-          operator: NotEqual
-          value: '{{ expected }}'
-  - context:
+          - key: "{{ obj }}"
+            operator: NotEqual
+            value: "{{ expected }}"
+  - name: unused-var
+    context:
     - name: obj
       variable:
         value:
@@ -213,20 +201,17 @@ spec:
     - name: expected
       variable:
         value:
-        - key: a
-          value: 1
-        - key: b
-          value: 2
+          - key: a
+            value: 1
+          - key: b
+            value: 2
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: unused-var
+      resources:
+        kinds:
+        - Pod
     validate:
       deny:
         conditions:
-        - key: '{{ modifiedObj }}'
-          operator: NotEqual
-          value: '{{ expected }}'
-  validationFailureAction: Audit
+          - key: "{{ modifiedObj }}"
+            operator: NotEqual
+            value: "{{ expected }}"

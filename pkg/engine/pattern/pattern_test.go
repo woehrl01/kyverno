@@ -2,11 +2,9 @@ package pattern
 
 import (
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
-	"github.com/go-logr/logr/funcr"
 	"github.com/kyverno/kyverno/pkg/engine/operator"
 	"gotest.tools/assert"
 )
@@ -148,17 +146,6 @@ func TestValidateQuantity_Operation(t *testing.T) {
 	assert.Assert(t, validateString(logr.Discard(), "0.5", ".5", operator.LessEqual))
 	assert.Assert(t, validateString(logr.Discard(), "0.2", ".5", operator.LessEqual))
 	assert.Assert(t, validateString(logr.Discard(), "0.2", ".5", operator.NotEqual))
-}
-
-func TestValidateQuantity_Operation_No_String_Check(t *testing.T) {
-	log := funcr.New(
-		func(prefix, args string) {
-			assert.Assert(t, !strings.Contains(args, "Operators >, >=, <, <= are not applicable to strings"),
-				"the compareString function should not be executed")
-		},
-		funcr.Options{Verbosity: 2},
-	)
-	assert.Assert(t, !validateString(log, "500m", "0.6", operator.MoreEqual))
 }
 
 func TestGetOperatorFromStringPattern_OneChar(t *testing.T) {

@@ -49,7 +49,7 @@ func NewTraceConfig(log logr.Logger, tracerName, address, certs string, kubeClie
 		resource.WithTelemetrySDK(),
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(tracerName),
-			semconv.ServiceVersionKey.String(version.Version()),
+			semconv.ServiceVersionKey.String(version.BuildVersion),
 		),
 		resource.WithFromEnv(),
 	)
@@ -63,8 +63,8 @@ func NewTraceConfig(log logr.Logger, tracerName, address, certs string, kubeClie
 		sdktrace.WithResource(res),
 	)
 	// set global propagator to tracecontext (the default is no-op).
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()

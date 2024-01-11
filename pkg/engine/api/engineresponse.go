@@ -4,10 +4,9 @@ import (
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/kyverno/kyverno/ext/wildcard"
 	datautils "github.com/kyverno/kyverno/pkg/utils/data"
 	utils "github.com/kyverno/kyverno/pkg/utils/match"
-	"gomodules.xyz/jsonpatch/v2"
+	"github.com/kyverno/kyverno/pkg/utils/wildcard"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -15,8 +14,8 @@ import (
 type EngineResponse struct {
 	// Resource is the original resource
 	Resource unstructured.Unstructured
-	// Policy is the original policy
-	policy GenericPolicy
+	// policy is the original policy
+	policy kyvernov1.PolicyInterface
 	// namespaceLabels given by policy context
 	namespaceLabels map[string]string
 	// PatchedResource is the resource patched with the engine action changes
@@ -38,14 +37,14 @@ func resource(policyContext PolicyContext) unstructured.Unstructured {
 func NewEngineResponseFromPolicyContext(policyContext PolicyContext) EngineResponse {
 	return NewEngineResponse(
 		resource(policyContext),
-		NewKyvernoPolicy(policyContext.Policy()),
+		policyContext.Policy(),
 		policyContext.NamespaceLabels(),
 	)
 }
 
 func NewEngineResponse(
 	resource unstructured.Unstructured,
-	policy GenericPolicy,
+	policy kyvernov1.PolicyInterface,
 	namespaceLabels map[string]string,
 ) EngineResponse {
 	return EngineResponse{
@@ -56,7 +55,7 @@ func NewEngineResponse(
 	}
 }
 
-func (er EngineResponse) WithPolicy(policy GenericPolicy) EngineResponse {
+func (er EngineResponse) WithPolicy(policy kyvernov1.PolicyInterface) EngineResponse {
 	er.policy = policy
 	return er
 }
@@ -85,7 +84,7 @@ func (er *EngineResponse) NamespaceLabels() map[string]string {
 	return er.namespaceLabels
 }
 
-func (er *EngineResponse) Policy() GenericPolicy {
+func (er *EngineResponse) Policy() kyvernov1.PolicyInterface {
 	return er.policy
 }
 
@@ -130,18 +129,10 @@ func (er EngineResponse) IsNil() bool {
 }
 
 // GetPatches returns all the patches joined
-func (er EngineResponse) GetPatches() []jsonpatch.JsonPatchOperation {
-	originalBytes, err := er.Resource.MarshalJSON()
-	if err != nil {
-		return nil
-	}
-	patchedBytes, err := er.PatchedResource.MarshalJSON()
-	if err != nil {
-		return nil
-	}
-	patches, err := jsonpatch.CreatePatch(originalBytes, patchedBytes)
-	if err != nil {
-		return nil
+func (er EngineResponse) GetPatches() [][]byte {
+	var patches [][]byte
+	for _, r := range er.PolicyResponse.Rules {
+		patches = append(patches, r.Patches()...)
 	}
 	return patches
 }
@@ -192,13 +183,8 @@ func (er EngineResponse) getRulesWithErrors(predicate func(RuleResponse) bool) [
 	return rules
 }
 
-// If the policy is of type ValidatingAdmissionPolicy, an empty string is returned.
 func (er EngineResponse) GetValidationFailureAction() kyvernov1.ValidationFailureAction {
-	pol := er.Policy()
-	if polType := pol.GetType(); polType == ValidatingAdmissionPolicyType {
-		return ""
-	}
-	spec := pol.GetPolicy().(kyvernov1.PolicyInterface).GetSpec()
+	spec := er.Policy().GetSpec()
 	for _, v := range spec.ValidationFailureActionOverrides {
 		if !v.Action.IsValid() {
 			continue

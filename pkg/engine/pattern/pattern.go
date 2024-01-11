@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/kyverno/kyverno/ext/wildcard"
 	"github.com/kyverno/kyverno/pkg/engine/operator"
+	wildcard "github.com/kyverno/kyverno/pkg/utils/wildcard"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -205,65 +205,61 @@ func split(pattern string, r *regexp.Regexp) (string, string, bool) {
 }
 
 func validateString(log logr.Logger, value interface{}, pattern string, op operator.Operator) bool {
-	if res, proc := compareDuration(log, value, pattern, op); proc {
-		return res
-	}
-	if res, proc := compareQuantity(log, value, pattern, op); proc {
-		return res
-	}
-	return compareString(log, value, pattern, op)
+	return compareDuration(log, value, pattern, op) ||
+		compareQuantity(log, value, pattern, op) ||
+		compareString(log, value, pattern, op)
 }
 
-func compareDuration(_ logr.Logger, value interface{}, pattern string, op operator.Operator) (res bool, processed bool) {
+func compareDuration(log logr.Logger, value interface{}, pattern string, op operator.Operator) bool {
 	if pattern, err := time.ParseDuration(pattern); err != nil {
-		return false, false
+		return false
 	} else if value, err := convertNumberToString(value); err != nil {
-		return false, false
+		return false
 	} else if value, err := time.ParseDuration(value); err != nil {
-		return false, false
+		return false
 	} else {
 		switch op {
 		case operator.Equal:
-			return value == pattern, true
+			return value == pattern
 		case operator.NotEqual:
-			return value != pattern, true
+			return value != pattern
 		case operator.More:
-			return value > pattern, true
+			return value > pattern
 		case operator.Less:
-			return value < pattern, true
+			return value < pattern
 		case operator.MoreEqual:
-			return value >= pattern, true
+			return value >= pattern
 		case operator.LessEqual:
-			return value <= pattern, true
+			return value <= pattern
 		}
-		return false, false
+		return false
 	}
 }
 
-func compareQuantity(_ logr.Logger, value interface{}, pattern string, op operator.Operator) (res bool, processed bool) {
+func compareQuantity(log logr.Logger, value interface{}, pattern string, op operator.Operator) bool {
 	if pattern, err := apiresource.ParseQuantity(pattern); err != nil {
-		return false, false
+		return false
 	} else if value, err := convertNumberToString(value); err != nil {
-		return false, false
+		return false
 	} else if value, err := apiresource.ParseQuantity(value); err != nil {
-		return false, false
+		return false
 	} else {
 		result := value.Cmp(pattern)
 		switch op {
 		case operator.Equal:
-			return result == int(equal), true
+			return result == int(equal)
 		case operator.NotEqual:
-			return result != int(equal), true
+			return result != int(equal)
 		case operator.More:
-			return result == int(greaterThan), true
+			return result == int(greaterThan)
 		case operator.Less:
-			return result == int(lessThan), true
+			return result == int(lessThan)
 		case operator.MoreEqual:
-			return (result == int(equal)) || (result == int(greaterThan)), true
+			return (result == int(equal)) || (result == int(greaterThan))
 		case operator.LessEqual:
-			return (result == int(equal)) || (result == int(lessThan)), true
+			return (result == int(equal)) || (result == int(lessThan))
 		}
-		return false, false
+		return false
 	}
 }
 

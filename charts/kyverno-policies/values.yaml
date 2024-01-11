@@ -1,7 +1,3 @@
-# -- Policy kind (`ClusterPolicy`, `Policy`)
-# Set to `Policy` if you need namespaced policies and not cluster policies
-policyKind: ClusterPolicy
-
 # -- Pod Security Standard profile (`baseline`, `restricted`, `privileged`, `custom`).
 # For more info https://kyverno.io/policies/pod-security.
 podSecurityStandard: baseline
@@ -24,9 +20,9 @@ includeRestrictedPolicies: []
 # For more info: https://kyverno.io/docs/writing-policies/policy-settings/
 failurePolicy: Fail
 
-# -- Validation failure action (`Audit`, `Enforce`).
+# -- Validation failure action (`audit`, `enforce`).
 # For more info https://kyverno.io/docs/writing-policies/validate.
-validationFailureAction: Audit
+validationFailureAction: audit
 
 # -- Define validationFailureActionByPolicy for specific policies.
 # Override the defined `validationFailureAction` with a individual validationFailureAction for individual Policies.

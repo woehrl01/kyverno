@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyverno/kyverno/api/kyverno"
 	"github.com/kyverno/kyverno/pkg/engine/api"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +34,7 @@ func createConfigMaps(ctx context.Context, client *kubefake.Clientset, addLabel 
 		Data: map[string]string{"configmapkey": "key1"},
 	}
 	if addLabel {
-		cm.ObjectMeta.Labels = map[string]string{kyverno.LabelCacheEnabled: "true"}
+		cm.ObjectMeta.Labels = map[string]string{LabelCacheKey: "true"}
 	}
 	_, err := client.CoreV1().ConfigMaps(namespace).Create(
 		ctx, cm, metav1.CreateOptions{})

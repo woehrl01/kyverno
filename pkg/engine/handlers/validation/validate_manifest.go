@@ -15,7 +15,8 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	kyvernov2beta1 "github.com/kyverno/kyverno/api/kyverno/v2beta1"
+	"github.com/kyverno/kyverno/pkg/auth"
+	"github.com/kyverno/kyverno/pkg/clients/dclient"
 	"github.com/kyverno/kyverno/pkg/config"
 	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
 	"github.com/kyverno/kyverno/pkg/engine/handlers"
@@ -26,7 +27,6 @@ import (
 	"go.uber.org/multierr"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -35,12 +35,12 @@ const (
 )
 
 type validateManifestHandler struct {
-	client engineapi.Client
+	client dclient.Interface
 }
 
 func NewValidateManifestHandler(
 	policyContext engineapi.PolicyContext,
-	client engineapi.Client,
+	client dclient.Interface,
 ) (handlers.Handler, error) {
 	if engineutils.IsDeleteRequest(policyContext) {
 		return nil, nil
@@ -57,23 +57,7 @@ func (h validateManifestHandler) Process(
 	resource unstructured.Unstructured,
 	rule kyvernov1.Rule,
 	_ engineapi.EngineContextLoader,
-	exceptions []kyvernov2beta1.PolicyException,
 ) (unstructured.Unstructured, []engineapi.RuleResponse) {
-	// check if there is a policy exception matches the incoming resource
-	exception := engineutils.MatchesException(exceptions, policyContext, logger)
-	if exception != nil {
-		key, err := cache.MetaNamespaceKeyFunc(exception)
-		if err != nil {
-			logger.Error(err, "failed to compute policy exception key", "namespace", exception.GetNamespace(), "name", exception.GetName())
-			return resource, handlers.WithError(rule, engineapi.Validation, "failed to compute exception key", err)
-		} else {
-			logger.V(3).Info("policy rule skipped due to policy exception", "exception", key)
-			return resource, handlers.WithResponses(
-				engineapi.RuleSkip(rule.Name, engineapi.Validation, "rule skipped due to policy exception "+key).WithException(exception),
-			)
-		}
-	}
-
 	// verify manifest
 	verified, reason, err := h.verifyManifest(ctx, logger, policyContext, *rule.Validation.Manifests)
 	if err != nil {
@@ -189,8 +173,12 @@ func (h validateManifestHandler) verifyManifest(
 }
 
 func (h validateManifestHandler) checkDryRunPermission(ctx context.Context, kind, namespace string) (bool, error) {
-	ok, _, err := h.client.CanI(ctx, kind, namespace, "create", "", config.KyvernoServiceAccountName())
-	return ok, err
+	canI := auth.NewCanI(h.client.Discovery(), h.client.GetKubeClient().AuthorizationV1().SubjectAccessReviews(), kind, namespace, "create", "", config.KyvernoServiceAccountName())
+	ok, err := canI.RunAccessCheck(ctx)
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
 }
 
 func verifyManifestAttestorSet(resource unstructured.Unstructured, attestorSet kyvernov1.AttestorSet, vo *k8smanifest.VerifyResourceOption, path string, uid string, logger logr.Logger) (bool, string, error) {

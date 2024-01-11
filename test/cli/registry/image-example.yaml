@@ -4,76 +4,68 @@ kind: ClusterPolicy
 metadata:
   name: images
 spec:
-  admission: true
-  background: true
+  validationFailureAction: enforce
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: only-allow-trusted-images
+  - name: only-allow-trusted-images
+    match:
+      resources:
+        kinds:
+        - Pod
     preconditions:
-      all:
-      - key: '{{request.operation}}'
+      - key: "{{request.operation}}"
         operator: NotEquals
         value: DELETE
     validate:
+      message: "images with root user are not allowed"
       foreach:
-      - context:
-        - imageRegistry:
-            reference: '{{ element.image }}'
-          name: imageData
+      - list: "request.object.spec.containers"
+        context:
+        - name: imageData
+          imageRegistry:
+            reference: "{{ element.image }}"
         deny:
           conditions:
             all:
-            - key: '{{ imageData.configData.config.User || ''''}}'
-              operator: Equals
-              value: ""
-            - key: '{{ imageData.registry }}'
-              operator: NotEquals
-              value: ghcr.io
-        list: request.object.spec.containers
-      message: images with root user are not allowed
-  validationFailureAction: Enforce
+              - key: "{{ imageData.configData.config.User || ''}}"
+                operator: Equals
+                value: ""
+              - key: "{{ imageData.registry }}"
+                operator: NotEquals
+                value: "ghcr.io"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: check-image-base
 spec:
-  admission: true
-  background: true
+  validationFailureAction: enforce
   rules:
-  - match:
+  - name: check-image-base-rule
+    match:
       any:
       - resources:
           kinds:
           - Pod
-    name: check-image-base-rule
     preconditions:
       all:
-      - key: '{{request.operation}}'
+      - key: "{{request.operation}}"
         operator: NotEquals
         value: DELETE
     validate:
+      message: "Images must specify a source/base image from which they are built to be valid."
       foreach:
-      - context:
-        - imageRegistry:
-            reference: '{{ element.image }}'
-          name: imageData
+      - list: "request.object.spec.containers"
+        context:
+        - name: imageData
+          imageRegistry:
+            reference: "{{ element.image }}"
         - name: mobysource
           variable:
+            jmesPath: imageData.configData."moby.buildkit.buildinfo.v1" | base64_decode(@).parse_json(@) | sources[].ref | length(@)
             default: 0
-            jmesPath: imageData.configData."moby.buildkit.buildinfo.v1" | base64_decode(@).parse_json(@)
-              | sources[].ref | length(@)
         deny:
           conditions:
             all:
-            - key: '{{ mobysource }}'
-              operator: Equals
-              value: 0
-        list: request.object.spec.containers
-      message: Images must specify a source/base image from which they are built to
-        be valid.
-  validationFailureAction: Enforce
+              - key: "{{ mobysource }}"
+                operator: Equals
+                value: 0

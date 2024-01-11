@@ -18,7 +18,7 @@ import (
 
 // FetchClusteredResources retieves the list of clustered resources
 func FetchClusteredResources(logger logr.Logger, client dclient.Interface) (sets.Set[string], error) {
-	res, err := discovery.ServerPreferredResources(client.Discovery().CachedDiscoveryInterface())
+	res, err := discovery.ServerPreferredResources(client.Discovery().DiscoveryInterface())
 	if err != nil {
 		if discovery.IsGroupDiscoveryFailedError(err) {
 			err := err.(*discovery.ErrGroupDiscoveryFailed)
@@ -73,7 +73,7 @@ func validateAuth(ctx context.Context, client dclient.Interface, policy kyvernov
 	kinds := sets.New(spec.MatchResources.GetKinds()...)
 	for kind := range kinds {
 		checker := auth.NewCanI(client.Discovery(), client.GetKubeClient().AuthorizationV1().SubjectAccessReviews(), kind, namespace, "delete", "", config.KyvernoUserName(config.KyvernoServiceAccountName()))
-		allowedDeletion, _, err := checker.RunAccessCheck(ctx)
+		allowedDeletion, err := checker.RunAccessCheck(ctx)
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func validateAuth(ctx context.Context, client dclient.Interface, policy kyvernov
 		}
 
 		checker = auth.NewCanI(client.Discovery(), client.GetKubeClient().AuthorizationV1().SubjectAccessReviews(), kind, namespace, "list", "", config.KyvernoUserName(config.KyvernoServiceAccountName()))
-		allowedList, _, err := checker.RunAccessCheck(ctx)
+		allowedList, err := checker.RunAccessCheck(ctx)
 		if err != nil {
 			return err
 		}
@@ -104,4 +104,4 @@ func validateVariables(logger logr.Logger, policy kyvernov2alpha1.CleanupPolicyI
 	return nil
 }
 
-var allowedVariables = regexp.MustCompile(`([a-z_0-9]+)|(target\.|images\.|([a-z_0-9]+\()[^{}])`)
+var allowedVariables = regexp.MustCompile(`target\.|images\.|([a-z_0-9]+\()[^{}]`)

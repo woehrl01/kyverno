@@ -12,18 +12,22 @@ import (
 )
 
 // ProcessStrategicMergePatch ...
-func ProcessStrategicMergePatch(logger logr.Logger, overlay interface{}, resource resource) (resource, error) {
+func ProcessStrategicMergePatch(logger logr.Logger, overlay interface{}, resource resource) (resource, patches, error) {
 	overlayBytes, err := json.Marshal(overlay)
 	if err != nil {
 		logger.Error(err, "failed to marshal resource")
-		return nil, err
+		return nil, nil, err
 	}
 	patchedBytes, err := strategicMergePatch(logger, string(resource), string(overlayBytes))
 	if err != nil {
 		logger.Error(err, "failed to apply patchStrategicMerge")
-		return nil, err
+		return nil, nil, err
 	}
-	return patchedBytes, nil
+	patches, err := generatePatches(resource, patchedBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return patchedBytes, patches, nil
 }
 
 func strategicMergePatch(logger logr.Logger, base, overlay string) ([]byte, error) {

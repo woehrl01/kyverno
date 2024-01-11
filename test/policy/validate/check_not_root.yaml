@@ -1,26 +1,21 @@
----
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: check-non-root
-spec:
-  admission: true
-  background: true
+apiVersion : kyverno.io/v1
+kind : ClusterPolicy
+metadata :
+  name : check-non-root
+spec :
   rules:
-  - match:
-      any:
-      - resources:
+    - name: check-non-root
+      match:
+        resources:
           kinds:
           - Deployment
           - StatefuleSet
           - DaemonSet
-    name: check-non-root
-    validate:
-      message: Root user is not allowed
-      pattern:
-        spec:
-          template:
-            spec:
-              securityContext:
-                runAsNonRoot: true
-  validationFailureAction: Audit
+      validate:
+        message: "Root user is not allowed"
+        pattern:
+          spec:
+            template:
+              spec:
+                securityContext:
+                  runAsNonRoot: true

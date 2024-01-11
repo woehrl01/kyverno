@@ -1,29 +1,25 @@
----
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: cm-array-example
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - context:
-    - configMap:
-        name: roles-dictionary
-        namespace: default
-      name: roles-dictionary
+  - name: validate-role-annotation
+    context:
+      - name: roles-dictionary
+        configMap:
+          name: roles-dictionary
+          namespace: default
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: validate-role-annotation
+      resources:
+        kinds:
+        - Pod
     validate:
+      message: "The role {{ request.object.metadata.annotations.role }} is not in the allowed list of roles: {{ \"roles-dictionary\".data.\"allowed-roles\" }}."
       deny:
         conditions:
-        - key: '{{ request.object.metadata.annotations.role }}'
+        - key: "{{ request.object.metadata.annotations.role }}"
           operator: NotIn
-          value: '{{ "roles-dictionary".data."allowed-roles" }}'
-      message: 'The role {{ request.object.metadata.annotations.role }} is not in
-        the allowed list of roles: {{ "roles-dictionary".data."allowed-roles" }}.'
-  validationFailureAction: Enforce
+          value:  "{{ \"roles-dictionary\".data.\"allowed-roles\" }}"

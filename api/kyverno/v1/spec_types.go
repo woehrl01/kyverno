@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/kyverno/kyverno/pkg/toggle"
@@ -80,12 +79,6 @@ type Spec struct {
 	// +optional
 	ValidationFailureActionOverrides []ValidationFailureActionOverride `json:"validationFailureActionOverrides,omitempty" yaml:"validationFailureActionOverrides,omitempty"`
 
-	// Admission controls if rules are applied during admission.
-	// Optional. Default value is "true".
-	// +optional
-	// +kubebuilder:default=true
-	Admission *bool `json:"admission,omitempty" yaml:"admission,omitempty"`
-
 	// Background controls if rules are applied to existing resources during a background scan.
 	// Optional. Default value is "true". The value must be set to "false" if the policy rule
 	// uses variables that are only available in the admission review request (e.g. user name).
@@ -93,7 +86,9 @@ type Spec struct {
 	// +kubebuilder:default=true
 	Background *bool `json:"background,omitempty" yaml:"background,omitempty"`
 
-	// Deprecated.
+	// SchemaValidation skips validation checks for policies as well as patched resources.
+	// Optional. The default value is set to "true", it must be set to "false" to disable the validation checks.
+	// +optional
 	SchemaValidation *bool `json:"schemaValidation,omitempty" yaml:"schemaValidation,omitempty"`
 
 	// WebhookTimeoutSeconds specifies the maximum time in seconds allowed to apply this policy.
@@ -115,12 +110,6 @@ type Spec struct {
 	// Defaults to "false" if not specified.
 	// +optional
 	GenerateExisting bool `json:"generateExisting,omitempty" yaml:"generateExisting,omitempty"`
-
-	// UseServerSideApply controls whether to use server-side apply for generate rules
-	// If is set to "true" create & update for generate rules will use apply instead of create/update.
-	// Defaults to "false" if not specified.
-	// +optional
-	UseServerSideApply bool `json:"useServerSideApply,omitempty" yaml:"useServerSideApply,omitempty"`
 }
 
 func (s *Spec) SetRules(rules []Rule) {
@@ -141,26 +130,6 @@ func (s *Spec) HasMutateOrValidateOrGenerate() bool {
 func (s *Spec) HasMutate() bool {
 	for _, rule := range s.Rules {
 		if rule.HasMutate() {
-			return true
-		}
-	}
-	return false
-}
-
-// HasMutateStandard checks for standard admission mutate rule
-func (s *Spec) HasMutateStandard() bool {
-	for _, rule := range s.Rules {
-		if rule.HasMutateStandard() {
-			return true
-		}
-	}
-	return false
-}
-
-// HasMutateExisting checks for mutate existing rule types
-func (s *Spec) HasMutateExisting() bool {
-	for _, rule := range s.Rules {
-		if rule.HasMutateExisting() {
 			return true
 		}
 	}
@@ -217,21 +186,22 @@ func (s *Spec) HasVerifyManifests() bool {
 	return false
 }
 
-// AdmissionProcessingEnabled checks if admission is set to true
-func (s *Spec) AdmissionProcessingEnabled() bool {
-	if s.Admission == nil {
-		return true
-	}
-
-	return *s.Admission
-}
-
 // BackgroundProcessingEnabled checks if background is set to true
 func (s *Spec) BackgroundProcessingEnabled() bool {
 	if s.Background == nil {
 		return true
 	}
 	return *s.Background
+}
+
+// IsMutateExisting checks if the mutate policy applies to existing resources
+func (s *Spec) IsMutateExisting() bool {
+	for _, rule := range s.Rules {
+		if rule.IsMutateExisting() {
+			return true
+		}
+	}
+	return false
 }
 
 // GetMutateExistingOnPolicyUpdate return MutateExistingOnPolicyUpdate set value
@@ -248,8 +218,8 @@ func (s *Spec) IsGenerateExisting() bool {
 }
 
 // GetFailurePolicy returns the failure policy to be applied
-func (s *Spec) GetFailurePolicy(ctx context.Context) FailurePolicyType {
-	if toggle.FromContext(ctx).ForceFailurePolicyIgnore() {
+func (s *Spec) GetFailurePolicy() FailurePolicyType {
+	if toggle.ForceFailurePolicyIgnore.Enabled() {
 		return Ignore
 	} else if s.FailurePolicy == nil {
 		return Fail
@@ -263,6 +233,13 @@ func (s *Spec) GetApplyRules() ApplyRulesType {
 		return ApplyAll
 	}
 	return *s.ApplyRules
+}
+
+func (s *Spec) ValidateSchema() bool {
+	if s.SchemaValidation != nil {
+		return *s.SchemaValidation
+	}
+	return true
 }
 
 // ValidateRuleNames checks if the rule names are unique across a policy
@@ -296,7 +273,7 @@ func (s *Spec) validateDeprecatedFields(path *field.Path) (errs field.ErrorList)
 }
 
 func (s *Spec) validateMutateTargets(path *field.Path) (errs field.ErrorList) {
-	if s.GetMutateExistingOnPolicyUpdate() {
+	if s.MutateExistingOnPolicyUpdate {
 		for i, rule := range s.Rules {
 			if !rule.HasMutate() {
 				continue

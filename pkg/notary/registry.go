@@ -4,56 +4,101 @@ import (
 	"context"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	gcrremote "github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/kyverno/kyverno/pkg/images"
+	"github.com/kyverno/kyverno/pkg/registryclient"
 	notationregistry "github.com/notaryproject/notation-go/registry"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
+	"oras.land/oras-go/v2/registry"
+	"oras.land/oras-go/v2/registry/remote"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
-type parsedReference struct {
-	Repo       notationregistry.Repository
-	RemoteOpts []gcrremote.Option
-	Ref        name.Reference
-	Desc       ocispec.Descriptor
+func parseReference(ctx context.Context, ref string, registryClient registryclient.Client) (notationregistry.Repository, registry.Reference, error) {
+	parsedRef, err := registry.ParseReference(ref)
+	if err != nil {
+		return nil, registry.Reference{}, errors.Wrapf(err, "failed to parse registry reference %s", ref)
+	}
+
+	authClient, plainHTTP, err := getAuthClient(ctx, parsedRef, registryClient)
+	if err != nil {
+		return nil, registry.Reference{}, err
+	}
+
+	repo, err := remote.NewRepository(ref)
+	if err != nil {
+		return nil, registry.Reference{}, errors.Wrapf(err, "failed to initialize repository")
+	}
+
+	repo.PlainHTTP = plainHTTP
+	repo.Client = authClient
+	repository := notationregistry.NewRepository(repo)
+
+	parsedRef, err = resolveDigest(repository, parsedRef)
+	if err != nil {
+		return nil, registry.Reference{}, errors.Wrapf(err, "failed to resolve digest")
+	}
+
+	return repository, parsedRef, nil
 }
 
-func parseReferenceCrane(ctx context.Context, ref string, registryClient images.Client) (*parsedReference, error) {
-	nameRef, err := name.ParseReference(ref)
+type imageResource struct {
+	ref registry.Reference
+}
+
+func (ir *imageResource) String() string {
+	return ir.ref.String()
+}
+
+func (ir *imageResource) RegistryStr() string {
+	return ir.ref.Registry
+}
+
+func getAuthClient(ctx context.Context, ref registry.Reference, rc registryclient.Client) (*auth.Client, bool, error) {
+	authn, err := rc.Keychain().Resolve(&imageResource{ref})
 	if err != nil {
-		return nil, err
+		return nil, false, errors.Wrapf(err, "failed to resolve auth for %s", ref.String())
 	}
 
-	remoteOpts, err := registryClient.Options(ctx)
+	authConfig, err := authn.Authorization()
 	if err != nil {
-		return nil, err
+		return nil, false, errors.Wrapf(err, "failed to get auth config for %s", ref.String())
 	}
 
-	desc, err := gcrremote.Head(nameRef, remoteOpts...)
+	credentials := auth.Credential{
+		Username:     authConfig.Username,
+		Password:     authConfig.Password,
+		AccessToken:  authConfig.IdentityToken,
+		RefreshToken: authConfig.RegistryToken,
+	}
+
+	authClient := &auth.Client{
+		Credential: func(ctx context.Context, registry string) (auth.Credential, error) {
+			switch registry {
+			default:
+				return credentials, nil
+			}
+		},
+		Cache:    auth.NewCache(),
+		ClientID: "notation",
+	}
+
+	authClient.SetUserAgent("kyverno.io")
+	return authClient, false, nil
+}
+
+func resolveDigest(repo notationregistry.Repository, ref registry.Reference) (registry.Reference, error) {
+	if isDigestReference(ref.String()) {
+		return ref, nil
+	}
+
+	// Resolve tag reference to digest reference.
+	manifestDesc, err := getManifestDescriptorFromReference(repo, ref.String())
 	if err != nil {
-		return nil, err
+		return registry.Reference{}, err
 	}
 
-	if !isDigestReference(ref) {
-		nameRef, err = name.ParseReference(GetReferenceFromDescriptor(v1ToOciSpecDescriptor(*desc), nameRef))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	repository := NewRepository(remoteOpts, nameRef)
-	err = resolveDigestCrane(repository, remoteOpts, nameRef)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to resolve digest")
-	}
-
-	return &parsedReference{
-		Repo:       repository,
-		RemoteOpts: remoteOpts,
-		Ref:        nameRef,
-		Desc:       v1ToOciSpecDescriptor(*desc),
-	}, nil
+	ref.Reference = manifestDesc.Digest.String()
+	return ref, nil
 }
 
 func isDigestReference(reference string) bool {
@@ -66,10 +111,11 @@ func isDigestReference(reference string) bool {
 	return index != -1
 }
 
-func resolveDigestCrane(repo notationregistry.Repository, remoteOpts []gcrremote.Option, ref name.Reference) error {
-	_, err := repo.Resolve(context.Background(), ref.Identifier())
+func getManifestDescriptorFromReference(repo notationregistry.Repository, reference string) (ocispec.Descriptor, error) {
+	ref, err := registry.ParseReference(reference)
 	if err != nil {
-		return err
+		return ocispec.Descriptor{}, err
 	}
-	return nil
+
+	return repo.Resolve(context.Background(), ref.ReferenceOrDefault())
 }

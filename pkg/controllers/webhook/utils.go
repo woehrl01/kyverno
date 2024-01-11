@@ -1,13 +1,11 @@
 package webhook
 
 import (
-	"cmp"
-	"slices"
 	"strings"
 
-	"github.com/kyverno/kyverno/api/kyverno"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"golang.org/x/exp/maps"
+	"github.com/kyverno/kyverno/pkg/utils"
+	"golang.org/x/exp/slices"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -46,28 +44,28 @@ func (wh *webhook) buildRulesWithOperations(ops ...admissionregistrationv1.Opera
 			Operations: ops,
 		})
 	}
-	less := func(a []string, b []string) (int, bool) {
-		if x := cmp.Compare(len(a), len(b)); x != 0 {
-			return x, true
+	less := func(a []string, b []string) (bool, bool) {
+		if len(a) != len(b) {
+			return len(a) < len(b), true
 		}
 		for i := range a {
-			if x := cmp.Compare(a[i], b[i]); x != 0 {
-				return x, true
+			if a[i] != b[i] {
+				return a[i] < b[i], true
 			}
 		}
-		return 0, false
+		return false, false
 	}
-	slices.SortFunc(rules, func(a admissionregistrationv1.RuleWithOperations, b admissionregistrationv1.RuleWithOperations) int {
-		if x, match := less(a.APIGroups, b.APIGroups); match {
-			return x
+	slices.SortFunc(rules, func(a admissionregistrationv1.RuleWithOperations, b admissionregistrationv1.RuleWithOperations) bool {
+		if less, match := less(a.APIGroups, b.APIGroups); match {
+			return less
 		}
-		if x, match := less(a.APIVersions, b.APIVersions); match {
-			return x
+		if less, match := less(a.APIVersions, b.APIVersions); match {
+			return less
 		}
-		if x, match := less(a.Resources, b.Resources); match {
-			return x
+		if less, match := less(a.Resources, b.Resources); match {
+			return less
 		}
-		return 0
+		return false
 	})
 	return rules
 }
@@ -86,16 +84,12 @@ func (wh *webhook) isEmpty() bool {
 	return len(wh.rules) == 0
 }
 
-func objectMeta(name string, annotations map[string]string, labels map[string]string, owner ...metav1.OwnerReference) metav1.ObjectMeta {
-	desiredLabels := make(map[string]string)
-	defaultLabels := map[string]string{
-		kyverno.LabelWebhookManagedBy: kyverno.ValueKyvernoApp,
-	}
-	maps.Copy(desiredLabels, labels)
-	maps.Copy(desiredLabels, defaultLabels)
+func objectMeta(name string, annotations map[string]string, owner ...metav1.OwnerReference) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
-		Name:            name,
-		Labels:          desiredLabels,
+		Name: name,
+		Labels: map[string]string{
+			utils.ManagedByLabel: kyvernov1.ValueKyvernoApp,
+		},
 		Annotations:     annotations,
 		OwnerReferences: owner,
 	}

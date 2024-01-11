@@ -32,15 +32,16 @@ It contains instructions to build, run, and test Kyverno.
 - Clone the project to your local machine.
 - Make sure that you have the Visual Studio Code editor installed on your system.
 
-- Make sure that you have wsl(Ubuntu preferred) and Docker installed on your system and on wsl too (docker.sock (UNIX socket) file is necessary to enable devcontainer to communicate with docker running in host machine).
+- Make sure that you have the Docker installed on your system.
 
-- Open the project in Visual Studio Code, once the project is opened hit F1 and type wsl, now click on "Reopen in WSL".
+- Open the project in Visual Studio Code.
 
 - If you haven't already done so, install the **Dev Containers** extension in Visual Studio Code.
 
 - Once the extension is installed, you should see a green icon in the bottom left corner of the window.
 
-- After you have installed Dev Containers extension, it should automatically detect the .devcontainer folder inside the project opened in wsl, and should suggest you to open the project in container.
+- After you have installed Dev Containers extension, it should automatically detect the .devcontainer folder inside the project,
+and should suggest you to open the project in container.
 
 - If it doesn't suggest you, then press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>p</kbd> and search "reopen in container" and click on it.
 
@@ -242,7 +243,7 @@ To create a local KinD cluster, run:
 make kind-create-cluster
 ```
 
-You can override the k8s version by setting the `KIND_IMAGE` environment variable (default value is `kindest/node:v1.28.0`).
+You can override the k8s version by setting the `KIND_IMAGE` environment variable (default value is `kindest/node:v1.24.0`).
 
 You can also override the KinD cluster name by setting the `KIND_NAME` environment variable (default value is `kind`).
 
@@ -413,7 +414,6 @@ You can run Kyverno locally or in your IDE of choice with a few steps:
 1. Deploy Kyverno manifests except the Kyverno `Deployment`
     - Kyverno is going to run on your local machine, so it should not run in cluster at the same time
     - You can deploy the manifests by running `make debug-deploy`
-1. There are multiple environment variables that need to be configured. The variables can be found in [here](./.vscode/launch.json). Their values can be set using the command `export $NAME=value`
 1. To run Kyverno locally against the remote cluster you will need to provide `--kubeconfig` and `--serverIP` arguments:
     - `--kubeconfig` must point to your kubeconfig file (usually `~/.kube/config`)
     - `--serverIP` must be set to `<local ip>:9443` (`<local ip>` is the private ip adress of your local machine)

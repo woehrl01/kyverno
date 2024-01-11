@@ -14,19 +14,11 @@ rules:
       - secrets
     verbs:
       - create
-  - apiGroups:
-      - ''
-    resources:
-      - secrets
-    verbs:
       - delete
       - get
       - list
       - update
       - watch
-    resourceNames:
-      - {{ template "kyverno.cleanup-controller.name" . }}.{{ template "kyverno.namespace" . }}.svc.kyverno-tls-ca
-      - {{ template "kyverno.cleanup-controller.name" . }}.{{ template "kyverno.namespace" . }}.svc.kyverno-tls-pair
   - apiGroups:
       - ''
     resources:
@@ -44,16 +36,9 @@ rules:
       - leases
     verbs:
       - create
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
       - delete
       - get
       - patch
       - update
-    resourceNames:
-      - kyverno-cleanup-controller
 {{- end -}}
 {{- end -}}

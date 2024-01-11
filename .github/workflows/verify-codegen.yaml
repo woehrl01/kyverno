@@ -1,7 +1,5 @@
 name: Verify codegen
 
-permissions: {}
-
 on:
   push:
     branches:
@@ -15,20 +13,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   verify-codegen:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Setup caches
-        uses: ./.github/actions/setup-caches
-        timeout-minutes: 5
-        continue-on-error: true
-        with:
-          build-cache-key: verify-codegen
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup build env
         uses: ./.github/actions/setup-build-env
-        timeout-minutes: 10
+        with:
+          build-cache-key: verify-codegen
       - name: Verify generated code is up to date
         run: make verify-codegen

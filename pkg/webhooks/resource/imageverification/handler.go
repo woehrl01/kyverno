@@ -11,7 +11,6 @@ import (
 	"github.com/kyverno/kyverno/pkg/config"
 	"github.com/kyverno/kyverno/pkg/engine"
 	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
-	"github.com/kyverno/kyverno/pkg/engine/mutate/patch"
 	"github.com/kyverno/kyverno/pkg/event"
 	"github.com/kyverno/kyverno/pkg/tracing"
 	admissionutils "github.com/kyverno/kyverno/pkg/utils/admission"
@@ -20,7 +19,6 @@ import (
 	reportutils "github.com/kyverno/kyverno/pkg/utils/report"
 	webhookutils "github.com/kyverno/kyverno/pkg/webhooks/utils"
 	"go.opentelemetry.io/otel/trace"
-	"gomodules.xyz/jsonpatch/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -86,7 +84,7 @@ func (h *imageVerificationHandler) handleVerifyImages(
 		return true, "", nil, nil
 	}
 	var engineResponses []engineapi.EngineResponse
-	var patches []jsonpatch.JsonPatchOperation
+	var patches [][]byte
 	verifiedImageData := engineapi.ImageVerificationMetadata{}
 	failurePolicy := kyvernov1.Ignore
 
@@ -96,7 +94,7 @@ func (h *imageVerificationHandler) handleVerifyImages(
 			"",
 			fmt.Sprintf("POLICY %s/%s", policy.GetNamespace(), policy.GetName()),
 			func(ctx context.Context, span trace.Span) {
-				if policy.GetSpec().GetFailurePolicy(ctx) == kyvernov1.Fail {
+				if policy.GetSpec().GetFailurePolicy() == kyvernov1.Fail {
 					failurePolicy = kyvernov1.Fail
 				}
 
@@ -139,7 +137,7 @@ func (h *imageVerificationHandler) handleVerifyImages(
 	go h.handleAudit(ctx, policyContext.NewResource(), request, nil, engineResponses...)
 
 	warnings := webhookutils.GetWarningMessages(engineResponses)
-	return true, "", jsonutils.JoinPatches(patch.ConvertPatches(patches...)...), warnings
+	return true, "", jsonutils.JoinPatches(patches...), warnings
 }
 
 func hasAnnotations(context *engine.PolicyContext) bool {

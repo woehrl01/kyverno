@@ -2,12 +2,11 @@ package autogen
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 
-	"github.com/kyverno/kyverno/api/kyverno"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kubeutils "github.com/kyverno/kyverno/pkg/utils/kube"
+	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -127,7 +126,7 @@ func GetRequestedControllers(meta *metav1.ObjectMeta) []string {
 	if annotations == nil {
 		return nil
 	}
-	controllers, ok := annotations[kyverno.AnnotationAutogenControllers]
+	controllers, ok := annotations[kyvernov1.PodControllersAnnotation]
 	if !ok || controllers == "" {
 		return nil
 	}
@@ -193,15 +192,13 @@ func convertRule(rule kyvernoRule, kind string) (*kyvernov1.Rule, error) {
 	if bytes, err := json.Marshal(rule); err != nil {
 		return nil, err
 	} else {
-		bytes = updateGenRuleByte(bytes, kind)
-		if err := json.Unmarshal(bytes, &rule); err != nil {
-			return nil, err
-		}
-
-		// CEL variables are object, oldObject, request, params and authorizer.
-		// Therefore CEL expressions can be either written as object.spec or request.object.spec
-		if rule.Validation != nil && rule.Validation.CEL != nil {
-			bytes = updateCELFields(bytes, kind)
+		if rule.Validation != nil && rule.Validation.PodSecurity != nil {
+			bytes = updateRestrictedFields(bytes, kind)
+			if err := json.Unmarshal(bytes, &rule); err != nil {
+				return nil, err
+			}
+		} else {
+			bytes = updateGenRuleByte(bytes, kind)
 			if err := json.Unmarshal(bytes, &rule); err != nil {
 				return nil, err
 			}
@@ -244,7 +241,7 @@ func computeRules(p kyvernov1.PolicyInterface) []kyvernov1.Rule {
 		desiredControllers = "none"
 	}
 	ann := p.GetAnnotations()
-	actualControllers, ok := ann[kyverno.AnnotationAutogenControllers]
+	actualControllers, ok := ann[kyvernov1.PodControllersAnnotation]
 	if !ok || !applyAutoGen {
 		actualControllers = desiredControllers
 	} else {

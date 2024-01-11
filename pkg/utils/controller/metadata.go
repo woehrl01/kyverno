@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/kyverno/kyverno/api/kyverno"
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -33,11 +33,11 @@ func GetLabel(obj metav1.Object, key string) string {
 }
 
 func SetManagedByKyvernoLabel(obj metav1.Object) {
-	SetLabel(obj, kyverno.LabelAppManagedBy, kyverno.ValueKyvernoApp)
+	SetLabel(obj, kyvernov1.LabelAppManagedBy, kyvernov1.ValueKyvernoApp)
 }
 
 func IsManagedByKyverno(obj metav1.Object) bool {
-	return CheckLabel(obj, kyverno.LabelAppManagedBy, kyverno.ValueKyvernoApp)
+	return CheckLabel(obj, kyvernov1.LabelAppManagedBy, kyvernov1.ValueKyvernoApp)
 }
 
 func HasLabel(obj metav1.Object, key string) bool {
@@ -56,14 +56,6 @@ func SetAnnotation(obj metav1.Object, key, value string) {
 	}
 	annotations[key] = value
 	obj.SetAnnotations(annotations)
-}
-
-func GetAnnotation(obj metav1.Object, key string) string {
-	annotations := obj.GetAnnotations()
-	if annotations == nil {
-		return ""
-	}
-	return annotations[key]
 }
 
 func HasAnnotation(obj metav1.Object, key string) bool {

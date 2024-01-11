@@ -8,6 +8,7 @@ import (
 type PolicyContext = policycontext.PolicyContext
 
 var (
+	NewPolicyContextWithJsonContext      = policycontext.NewPolicyContextWithJsonContext
 	NewPolicyContext                     = policycontext.NewPolicyContext
 	NewPolicyContextFromAdmissionRequest = policycontext.NewPolicyContextFromAdmissionRequest
 )

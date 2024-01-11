@@ -1,178 +1,162 @@
----
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: base64
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - Secret
-    name: secret-value-must-match-label
+  - name: secret-value-must-match-label
+    match:
+      resources:
+        kinds:
+        - Secret
     validate:
       deny:
         conditions:
-        - key: '{{base64_decode(request.object.data.value)}}'
+        - key: "{{base64_decode(request.object.data.value)}}"
           operator: NotEquals
-          value: '{{request.object.metadata.labels.value}}'
-  validationFailureAction: Enforce
+          value: "{{request.object.metadata.labels.value}}"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: pattern-match
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - match:
-      all:
-      - resources:
-          kinds:
-          - Namespace
-    name: label-must-match-pattern
-    validate:
-      deny:
-        conditions:
-          all:
-          - key: '{{pattern_match(''prefix-*'', request.object.metadata.labels.value)}}'
-            operator: Equals
-            value: false
-  validationFailureAction: Enforce
+    - match:
+        all:
+          - resources:
+              kinds:
+                - Namespace
+      name: label-must-match-pattern
+      validate:
+        deny:
+          conditions:
+            all:
+              - key: "{{pattern_match('prefix-*', request.object.metadata.labels.value)}}"
+                operator: Equals
+                value: false
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: path-canonicalize
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: disallow-mount-containerd-sock
+  - name: disallow-mount-containerd-sock
+    match:
+      resources:
+        kinds:
+        - Pod
     validate:
       foreach:
-      - deny:
-          conditions:
-            any:
-            - key: '{{ path_canonicalize(element.hostPath.path) }}'
-              operator: Equals
-              value: /var/run/containerd/containerd.sock
-            - key: '{{ path_canonicalize(element.hostPath.path) }}'
-              operator: Equals
-              value: /run/containerd/containerd.sock
-            - key: '{{ path_canonicalize(element.hostPath.path) }}'
-              operator: Equals
-              value: \var\run\containerd\containerd.sock
-        list: request.object.spec.volumes[]
+      - list: "request.object.spec.volumes[]"
         preconditions:
           all:
-          - key: '{{ element.hostPath.path }}'
+          - key: "{{ element.hostPath.path }}"
             operator: NotEquals
             value: ""
-  validationFailureAction: Enforce
+        deny:
+          conditions:
+            any:
+            - key: "{{ path_canonicalize(element.hostPath.path) }}"
+              operator: Equals
+              value: "/var/run/containerd/containerd.sock"
+            - key: "{{ path_canonicalize(element.hostPath.path) }}"
+              operator: Equals
+              value: "/run/containerd/containerd.sock"
+            # Allow variation in paths (to accommodate Windows) for local tests.
+            - key: "{{ path_canonicalize(element.hostPath.path) }}"
+              operator: Equals
+              value: "\\var\\run\\containerd\\containerd.sock"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: test-parse-json
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - ConfigMap
-    name: test-json-parsing-jmespath
+  - name: test-json-parsing-jmespath
+    match:
+      resources:
+        kinds:
+         - ConfigMap
     validate:
+      message: "Test JMESPath"
       deny:
         conditions:
-        - key: '{{request.object.metadata.annotations.test | parse_json(@).a }}'
+        - key: "{{request.object.metadata.annotations.test | parse_json(@).a }}"
           operator: NotEquals
           value: b
-      message: Test JMESPath
-  validationFailureAction: Enforce
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: test-parse-yaml
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - ConfigMap
-    name: test-yaml-parsing-jmespath
+  - name: test-yaml-parsing-jmespath
+    match:
+      resources:
+        kinds:
+         - ConfigMap
     validate:
+      message: "Test JMESPath"
       deny:
         conditions:
-        - key: '{{request.object.metadata.annotations.test | parse_yaml(@).value }}'
+        - key: "{{request.object.metadata.annotations.test | parse_yaml(@).value }}"
           operator: NotEquals
-          value: a
-      message: Test JMESPath
-  validationFailureAction: Enforce
+          value: "a"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: test-parse-yaml-array
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
   rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - ConfigMap
-    name: test-yaml-parsing-jmespath
+  - name: test-yaml-parsing-jmespath
+    match:
+      resources:
+        kinds:
+         - ConfigMap
     validate:
+      message: "Test JMESPath"
       deny:
         conditions:
         - key: a
           operator: NotIn
-          value: '{{request.object.metadata.annotations.test | parse_yaml(@).array
-            }}'
-      message: Test JMESPath
-  validationFailureAction: Enforce
+          value: "{{request.object.metadata.annotations.test | parse_yaml(@).array }}"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: test-x509-decode
 spec:
-  admission: true
-  background: true
+  validationFailureAction: enforce
   rules:
-  - match:
+  - name: test-x509-decode
+    match:
       any:
       - resources:
           kinds:
           - ConfigMap
-    name: test-x509-decode
     validate:
+      message: "public key modulus mismatch: \"{{ x509_decode('{{request.object.data.cert}}').PublicKey.N }}\" != \"{{ x509_decode('{{base64_decode('{{request.object.data.certB64}}')}}').PublicKey.N }}\""
       deny:
         conditions:
           any:
-          - key: '{{ x509_decode(''{{request.object.data.cert}}'').PublicKey.N }}'
-            operator: NotEquals
-            value: '{{ x509_decode(''{{base64_decode(''{{request.object.data.certB64}}'')}}'').PublicKey.N
-              }}'
-      message: 'public key modulus mismatch: "{{ x509_decode(''{{request.object.data.cert}}'').PublicKey.N
-        }}" != "{{ x509_decode(''{{base64_decode(''{{request.object.data.certB64}}'')}}'').PublicKey.N
-        }}"'
-  validationFailureAction: Enforce
+            - key: "{{ x509_decode('{{request.object.data.cert}}').PublicKey.N }}"
+              operator: NotEquals
+              value: "{{ x509_decode('{{base64_decode('{{request.object.data.certB64}}')}}').PublicKey.N }}"
+              

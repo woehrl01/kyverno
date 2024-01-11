@@ -10,7 +10,6 @@ import (
 	enginectx "github.com/kyverno/kyverno/pkg/engine/context"
 	"github.com/kyverno/kyverno/pkg/engine/jmespath"
 	admissionutils "github.com/kyverno/kyverno/pkg/utils/admission"
-	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -60,26 +59,6 @@ type PolicyContext struct {
 
 func (c *PolicyContext) Policy() kyvernov1.PolicyInterface {
 	return c.policy
-}
-
-func (c *PolicyContext) OldPolicyContext() (engineapi.PolicyContext, error) {
-	if c.Operation() != kyvernov1.Update {
-		return nil, errors.New("cannot create old policy context")
-	}
-	copy := c.copy()
-	oldJsonContext := copy.jsonContext
-	copy.oldResource = unstructured.Unstructured{}
-	copy.newResource = c.oldResource
-
-	if err := oldJsonContext.AddResource(nil); err != nil {
-		return nil, errors.Wrapf(err, "failed to replace object in the JSON context")
-	}
-	if err := oldJsonContext.AddOldResource(copy.OldResource().Object); err != nil {
-		return nil, errors.Wrapf(err, "failed to replace old object in the JSON context")
-	}
-
-	copy.jsonContext = oldJsonContext
-	return copy, nil
 }
 
 func (c *PolicyContext) NewResource() unstructured.Unstructured {
@@ -187,7 +166,7 @@ func (c *PolicyContext) WithResources(newResource unstructured.Unstructured, old
 	return c.WithNewResource(newResource).WithOldResource(oldResource)
 }
 
-func (c *PolicyContext) WithAdmissionOperation(admissionOperation bool) *PolicyContext {
+func (c *PolicyContext) withAdmissionOperation(admissionOperation bool) *PolicyContext {
 	copy := c.copy()
 	copy.admissionOperation = admissionOperation
 	return copy
@@ -199,59 +178,15 @@ func (c PolicyContext) copy() *PolicyContext {
 
 // Constructors
 
-func newPolicyContextWithJsonContext(operation kyvernov1.AdmissionOperation, jsonContext enginectx.Interface) *PolicyContext {
+func NewPolicyContextWithJsonContext(operation kyvernov1.AdmissionOperation, jsonContext enginectx.Interface) *PolicyContext {
 	return &PolicyContext{
 		operation:   operation,
 		jsonContext: jsonContext,
 	}
 }
 
-func NewPolicyContext(
-	jp jmespath.Interface,
-	resource unstructured.Unstructured,
-	operation kyvernov1.AdmissionOperation,
-	admissionInfo *kyvernov1beta1.RequestInfo,
-	configuration config.Configuration,
-) (*PolicyContext, error) {
-	enginectx := enginectx.NewContext(jp)
-
-	if operation != kyvernov1.Delete {
-		if err := enginectx.AddResource(resource.Object); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := enginectx.AddOldResource(resource.Object); err != nil {
-			return nil, err
-		}
-	}
-	if err := enginectx.AddNamespace(resource.GetNamespace()); err != nil {
-		return nil, err
-	}
-	if err := enginectx.AddImageInfos(&resource, configuration); err != nil {
-		return nil, err
-	}
-	if admissionInfo != nil {
-		if err := enginectx.AddUserInfo(*admissionInfo); err != nil {
-			return nil, err
-		}
-		if err := enginectx.AddServiceAccount(admissionInfo.AdmissionUserInfo.Username); err != nil {
-			return nil, err
-		}
-	}
-	if err := enginectx.AddOperation(string(operation)); err != nil {
-		return nil, err
-	}
-	policyContext := newPolicyContextWithJsonContext(operation, enginectx)
-	if operation != kyvernov1.Delete {
-		policyContext = policyContext.WithNewResource(resource)
-	} else {
-		policyContext = policyContext.WithOldResource(resource)
-	}
-	if admissionInfo != nil {
-		policyContext = policyContext.WithAdmissionInfo(*admissionInfo)
-	}
-
-	return policyContext, nil
+func NewPolicyContext(jp jmespath.Interface, operation kyvernov1.AdmissionOperation) *PolicyContext {
+	return NewPolicyContextWithJsonContext(operation, enginectx.NewContext(jp))
 }
 
 func NewPolicyContextFromAdmissionRequest(
@@ -272,14 +207,13 @@ func NewPolicyContextFromAdmissionRequest(
 	if err := engineCtx.AddImageInfos(&newResource, configuration); err != nil {
 		return nil, fmt.Errorf("failed to add image information to the policy rule context: %w", err)
 	}
-	policyContext := newPolicyContextWithJsonContext(kyvernov1.AdmissionOperation(request.Operation), engineCtx).
+	policyContext := NewPolicyContextWithJsonContext(kyvernov1.AdmissionOperation(request.Operation), engineCtx).
 		WithNewResource(newResource).
 		WithOldResource(oldResource).
 		WithAdmissionInfo(admissionInfo).
-		WithAdmissionOperation(true).
+		withAdmissionOperation(true).
 		WithResourceKind(gvk, request.SubResource).
 		WithRequestResource(request.Resource)
-
 	return policyContext, nil
 }
 

@@ -1,7 +1,7 @@
 package variables
 
 import (
-	"github.com/kyverno/go-jmespath"
+	"github.com/jmespath/go-jmespath"
 	enginecontext "github.com/kyverno/kyverno/pkg/engine/context"
 )
 

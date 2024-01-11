@@ -22,20 +22,20 @@ import (
 
 // Status specifies state of a policy result
 const (
-	StatusPass  PolicyResult = "pass"
-	StatusFail  PolicyResult = "fail"
-	StatusWarn  PolicyResult = "warn"
-	StatusError PolicyResult = "error"
-	StatusSkip  PolicyResult = "skip"
+	StatusPass  = "pass"
+	StatusFail  = "fail"
+	StatusWarn  = "warn"
+	StatusError = "error"
+	StatusSkip  = "skip"
 )
 
 // Severity specifies priority of a policy result
 const (
-	SeverityCritical PolicySeverity = "critical"
-	SeverityHigh     PolicySeverity = "high"
-	SeverityMedium   PolicySeverity = "medium"
-	SeverityLow      PolicySeverity = "low"
-	SeverityInfo     PolicySeverity = "info"
+	SeverityCritical = "critical"
+	SeverityHigh     = "high"
+	SeverityMedium   = "medium"
+	SeverityLow      = "low"
+	SeverityInfo     = "info"
 )
 
 // PolicyReportSummary provides a status count summary

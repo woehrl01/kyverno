@@ -19,9 +19,8 @@
 {{- end -}}
 
 {{- define "kyverno.reports-controller.image" -}}
-{{- $imageRegistry := default .image.registry .globalRegistry -}}
-{{- if $imageRegistry -}}
-  {{ $imageRegistry }}/{{ required "An image repository is required" .image.repository }}:{{ default .defaultTag .image.tag }}
+{{- if .image.registry -}}
+  {{ .image.registry }}/{{ required "An image repository is required" .image.repository }}:{{ default .defaultTag .image.tag }}
 {{- else -}}
   {{ required "An image repository is required" .image.repository }}:{{ default .defaultTag .image.tag }}
 {{- end -}}
@@ -37,8 +36,4 @@
 {{- else -}}
     {{ required "A service account name is required when `rbac.create` is set to `false`" .Values.reportsController.rbac.serviceAccount.name }}
 {{- end -}}
-{{- end -}}
-
-{{- define "kyverno.reports-controller.caCertificatesConfigMapName" -}}
-{{ printf "%s-ca-certificates" (include "kyverno.reports-controller.name" .) }}
 {{- end -}}

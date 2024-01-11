@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/kyverno/kyverno/api/kyverno"
-	"gomodules.xyz/jsonpatch/v2"
+	jsonutils "github.com/kyverno/kyverno/pkg/utils/json"
 )
+
+const ImageVerifyAnnotationKey = "kyverno.io/verify-images"
 
 type ImageVerificationMetadata struct {
 	Data map[string]bool `json:"data"`
@@ -42,27 +43,27 @@ func ParseImageMetadata(jsonData string) (*ImageVerificationMetadata, error) {
 	}, nil
 }
 
-func (ivm *ImageVerificationMetadata) Patches(hasAnnotations bool, log logr.Logger) ([]jsonpatch.JsonPatchOperation, error) {
+func (ivm *ImageVerificationMetadata) Patches(hasAnnotations bool, log logr.Logger) ([][]byte, error) {
 	if data, err := json.Marshal(ivm.Data); err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata value: %v: %w", data, err)
 	} else {
-		var patches []jsonpatch.JsonPatchOperation
+		var patches [][]byte
 		if !hasAnnotations {
-			patch := jsonpatch.JsonPatchOperation{
-				Operation: "add",
-				Path:      "/metadata/annotations",
-				Value:     map[string]string{},
+			patch := jsonutils.NewPatchOperation("/metadata/annotations", "add", map[string]string{})
+			patchBytes, err := patch.Marshal()
+			if err != nil {
+				return nil, err
 			}
 			log.V(4).Info("adding annotation patch", "patch", patch)
-			patches = append(patches, patch)
+			patches = append(patches, patchBytes)
 		}
-		patch := jsonpatch.JsonPatchOperation{
-			Operation: "add",
-			Path:      makeAnnotationKeyForJSONPatch(),
-			Value:     string(data),
+		patch := jsonutils.NewPatchOperation(makeAnnotationKeyForJSONPatch(), "add", string(data))
+		patchBytes, err := patch.Marshal()
+		if err != nil {
+			return nil, err
 		}
 		log.V(4).Info("adding image verification patch", "patch", patch)
-		patches = append(patches, patch)
+		patches = append(patches, patchBytes)
 		return patches, nil
 	}
 }
@@ -78,5 +79,5 @@ func (ivm *ImageVerificationMetadata) IsEmpty() bool {
 }
 
 func makeAnnotationKeyForJSONPatch() string {
-	return "/metadata/annotations/" + strings.ReplaceAll(kyverno.AnnotationImageVerify, "/", "~1")
+	return "/metadata/annotations/" + strings.ReplaceAll(ImageVerifyAnnotationKey, "/", "~1")
 }

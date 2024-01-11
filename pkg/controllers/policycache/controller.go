@@ -53,12 +53,8 @@ func NewController(client dclient.Interface, pcache pcache.Cache, cpolInformer k
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), ControllerName),
 		client:     client,
 	}
-	if _, _, err := controllerutils.AddDefaultEventHandlers(logger, cpolInformer.Informer(), c.queue); err != nil {
-		logger.Error(err, "failed to register event handlers")
-	}
-	if _, _, err := controllerutils.AddDefaultEventHandlers(logger, polInformer.Informer(), c.queue); err != nil {
-		logger.Error(err, "failed to register event handlers")
-	}
+	controllerutils.AddDefaultEventHandlers(logger, cpolInformer.Informer(), c.queue)
+	controllerutils.AddDefaultEventHandlers(logger, polInformer.Informer(), c.queue)
 	return &c
 }
 
@@ -103,12 +99,7 @@ func (c *controller) reconcile(ctx context.Context, logger logr.Logger, key, nam
 		}
 		return err
 	}
-	if policy.AdmissionProcessingEnabled() {
-		return c.cache.Set(key, policy, c.client.Discovery())
-	} else {
-		c.cache.Unset(key)
-		return nil
-	}
+	return c.cache.Set(key, policy, c.client.Discovery())
 }
 
 func (c *controller) loadPolicy(namespace, name string) (kyvernov1.PolicyInterface, error) {

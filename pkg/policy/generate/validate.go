@@ -7,16 +7,15 @@ import (
 
 	"github.com/go-logr/logr"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/kyverno/kyverno/ext/wildcard"
 	"github.com/kyverno/kyverno/pkg/clients/dclient"
 	"github.com/kyverno/kyverno/pkg/engine/variables/regex"
 	"github.com/kyverno/kyverno/pkg/policy/common"
 	kubeutils "github.com/kyverno/kyverno/pkg/utils/kube"
+	"github.com/kyverno/kyverno/pkg/utils/wildcard"
 )
 
 // Generate provides implementation to validate 'generate' rule
 type Generate struct {
-	user string
 	// rule to hold 'generate' rule specifications
 	rule kyvernov1.Generation
 	// authCheck to check access for operations
@@ -28,7 +27,6 @@ type Generate struct {
 // NewGenerateFactory returns a new instance of Generate validation checker
 func NewGenerateFactory(client dclient.Interface, rule kyvernov1.Generation, user string, log logr.Logger) *Generate {
 	g := Generate{
-		user:      user,
 		rule:      rule,
 		authCheck: NewAuth(client, user, log),
 		log:       log,
@@ -114,7 +112,7 @@ func (g *Generate) canIGenerate(ctx context.Context, gvk, namespace, subresource
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("%s does not have permissions to 'create' resource %s/%s/%s. Grant proper permissions to the background controller", g.user, gvk, subresource, namespace)
+			return fmt.Errorf("kyverno does not have permissions to 'create' resource %s/%s/%s. Grant proper permissions to the background controller", gvk, subresource, namespace)
 		}
 
 		ok, err = authCheck.CanIUpdate(ctx, gvk, namespace, subresource)
@@ -122,7 +120,7 @@ func (g *Generate) canIGenerate(ctx context.Context, gvk, namespace, subresource
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("%s does not have permissions to 'update' resource %s/%s/%s. Grant proper permissions to the background controller", g.user, gvk, subresource, namespace)
+			return fmt.Errorf("kyverno does not have permissions to 'update' resource %s/%s/%s. Grant proper permissions to the background controller", gvk, subresource, namespace)
 		}
 
 		ok, err = authCheck.CanIGet(ctx, gvk, namespace, subresource)
@@ -130,7 +128,7 @@ func (g *Generate) canIGenerate(ctx context.Context, gvk, namespace, subresource
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("%s does not have permissions to 'get' resource %s/%s/%s. Grant proper permissions to the background controller", g.user, gvk, subresource, namespace)
+			return fmt.Errorf("kyverno does not have permissions to 'get' resource %s/%s/%s. Grant proper permissions to the background controller", gvk, subresource, namespace)
 		}
 
 		ok, err = authCheck.CanIDelete(ctx, gvk, namespace, subresource)
@@ -138,7 +136,7 @@ func (g *Generate) canIGenerate(ctx context.Context, gvk, namespace, subresource
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("%s does not have permissions to 'delete' resource %s/%s/%s. Grant proper permissions to the background controller", g.user, gvk, subresource, namespace)
+			return fmt.Errorf("kyverno does not have permissions to 'delete' resource %s/%s/%s. Grant proper permissions to the background controller", gvk, subresource, namespace)
 		}
 	} else {
 		g.log.V(2).Info("resource Kind uses variables, so cannot be resolved. Skipping Auth Checks.")

@@ -29,12 +29,9 @@ spec:
           securityContext:
             {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
-          {{- with .Values.cleanupJobs.clusterAdmissionReports.priorityClassName }}
-          priorityClassName: {{ . }}
-          {{- end }}
           containers:
           - name: cleanup
-            image: {{ (include "kyverno.image" (dict "globalRegistry" ((.Values.global).image).registry "image" .Values.cleanupJobs.clusterAdmissionReports.image)) | quote }}
+            image: {{ (include "kyverno.image" .Values.cleanupJobs.clusterAdmissionReports) | quote }}
             imagePullPolicy: {{ .Values.cleanupJobs.clusterAdmissionReports.image.pullPolicy }}
             command:
             - /bin/sh
@@ -64,7 +61,7 @@ spec:
           tolerations:
             {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
-          {{- with .Values.cleanupJobs.clusterAdmissionReports.nodeSelector | default .Values.global.nodeSelector }}
+          {{- with .Values.cleanupJobs.clusterAdmissionReports.nodeSelector }}
           nodeSelector:
             {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}

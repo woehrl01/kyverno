@@ -12,11 +12,15 @@ import (
 
 func (pc *policyController) handleMutate(policyKey string, policy kyvernov1.PolicyInterface) error {
 	logger := pc.log.WithName("handleMutate").WithName(policyKey)
+	if !policy.GetSpec().MutateExistingOnPolicyUpdate {
+		logger.V(4).Info("skip policy application on policy event", "policyKey", policyKey, "mutateExiting", policy.GetSpec().MutateExistingOnPolicyUpdate)
+		return nil
+	}
 
 	logger.Info("update URs on policy event")
 	for _, rule := range policy.GetSpec().Rules {
 		var ruleType kyvernov1beta1.RequestType
-		if rule.HasMutateExisting() {
+		if rule.IsMutateExisting() {
 			ruleType = kyvernov1beta1.Mutate
 			triggers := generateTriggers(pc.client, rule, pc.log)
 			for _, trigger := range triggers {

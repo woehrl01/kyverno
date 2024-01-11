@@ -37,10 +37,6 @@ type Validation struct {
 	// by specifying exclusions for Pod Security Standards controls.
 	// +optional
 	PodSecurity *kyvernov1.PodSecurity `json:"podSecurity,omitempty" yaml:"podSecurity,omitempty"`
-
-	// CEL allows validation checks using the Common Expression Language (https://kubernetes.io/docs/reference/using-api/cel/).
-	// +optional
-	CEL *kyvernov1.CEL `json:"cel,omitempty" yaml:"cel,omitempty"`
 }
 
 // ConditionOperator is the operation performed on condition key and value.
@@ -81,7 +77,8 @@ var ConditionOperators = map[string]ConditionOperator{
 
 // Deny specifies a list of conditions used to pass or fail a validation rule.
 type Deny struct {
-	// Multiple conditions can be declared under an `any` or `all` statement.
+	// Multiple conditions can be declared under an `any` or `all` statement. A direct list
+	// of conditions (without `any` or `all` statements) is also supported for backwards compatibility
 	// See: https://kyverno.io/docs/writing-policies/validate/#deny-rules
 	RawAnyAllConditions *AnyAllConditions `json:"conditions,omitempty" yaml:"conditions,omitempty"`
 }

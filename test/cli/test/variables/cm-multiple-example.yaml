@@ -1,31 +1,25 @@
----
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: cm-multiple-example
 spec:
-  admission: true
-  background: true
   rules:
-  - context:
-    - configMap:
+  - name: example-configmap-lookup
+    context:
+    - name: dictionary
+      configMap:
         name: some-config-map
         namespace: some-namespace
-      name: dictionary
-    - configMap:
+    - name: anotherdictionary
+      configMap:
         name: another-config-map
         namespace: some-namespace
-      name: anotherdictionary
     match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: example-configmap-lookup
+      resources:
+        kinds:
+        - Pod
     validate:
       pattern:
         metadata:
           labels:
-            my-environment-name: '{{dictionary.data.env || anotherdictionary.data.env
-              }}'
-  validationFailureAction: Audit
+            my-environment-name: "{{dictionary.data.env || anotherdictionary.data.env }}"

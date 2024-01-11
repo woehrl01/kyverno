@@ -169,7 +169,7 @@ func Test_toggle_Enabled(t *testing.T) {
 			}
 			tr := newToggle(tt.fields.defaultValue, tt.fields.envVar)
 			tr.Parse(tt.value)
-			got := tr.enabled()
+			got := tr.Enabled()
 			assert.Equal(t, tt.want, got)
 		})
 	}

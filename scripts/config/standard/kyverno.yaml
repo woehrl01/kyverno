@@ -36,6 +36,3 @@ cleanupController:
             - ''
           resources:
             - pods
-          verbs:
-            - list
-            - delete

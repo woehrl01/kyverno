@@ -5,13 +5,11 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/kyverno/kyverno/api/kyverno"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernov1beta1 "github.com/kyverno/kyverno/api/kyverno/v1beta1"
 	"github.com/kyverno/kyverno/pkg/logging"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	pkglabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -20,7 +18,6 @@ type Object interface {
 	GetNamespace() string
 	GetKind() string
 	GetAPIVersion() string
-	GetUID() types.UID
 }
 
 func ManageLabels(unstr *unstructured.Unstructured, triggerResource unstructured.Unstructured, policy kyvernov1.PolicyInterface, ruleName string) {
@@ -43,7 +40,7 @@ func MutateLabelsSet(policyKey string, trigger Object) pkglabels.Set {
 	}
 	isNil := trigger == nil || (reflect.ValueOf(trigger).Kind() == reflect.Ptr && reflect.ValueOf(trigger).IsNil())
 	if !isNil {
-		set[kyvernov1beta1.URMutateTriggerNameLabel] = trimByLength(trigger.GetName(), 63)
+		set[kyvernov1beta1.URMutateTriggerNameLabel] = trigger.GetName()
 		set[kyvernov1beta1.URMutateTriggerNSLabel] = trigger.GetNamespace()
 		set[kyvernov1beta1.URMutateTriggerKindLabel] = trigger.GetKind()
 		if trigger.GetAPIVersion() != "" {
@@ -61,7 +58,7 @@ func GenerateLabelsSet(policyKey string, trigger Object) pkglabels.Set {
 	}
 	isNil := trigger == nil || (reflect.ValueOf(trigger).Kind() == reflect.Ptr && reflect.ValueOf(trigger).IsNil())
 	if !isNil {
-		set[kyvernov1beta1.URGenerateResourceUIDLabel] = string(trigger.GetUID())
+		set[kyvernov1beta1.URGenerateResourceNameLabel] = trigger.GetName()
 		set[kyvernov1beta1.URGenerateResourceNSLabel] = trigger.GetNamespace()
 		set[kyvernov1beta1.URGenerateResourceKindLabel] = trigger.GetKind()
 	}
@@ -70,8 +67,8 @@ func GenerateLabelsSet(policyKey string, trigger Object) pkglabels.Set {
 
 func managedBy(labels map[string]string) {
 	// ManagedBy label
-	key := kyverno.LabelAppManagedBy
-	value := kyverno.ValueKyvernoApp
+	key := kyvernov1.LabelAppManagedBy
+	value := kyvernov1.ValueKyvernoApp
 	val, ok := labels[key]
 	if ok {
 		if val != value {
@@ -96,7 +93,7 @@ func TriggerInfo(labels map[string]string, obj unstructured.Unstructured) {
 	labels[GenerateTriggerGroupLabel] = obj.GroupVersionKind().Group
 	labels[GenerateTriggerKindLabel] = obj.GetKind()
 	labels[GenerateTriggerNSLabel] = obj.GetNamespace()
-	labels[GenerateTriggerUIDLabel] = string(obj.GetUID())
+	labels[GenerateTriggerNameLabel] = trimByLength(obj.GetName(), 63)
 }
 
 func TagSource(labels map[string]string, obj Object) {

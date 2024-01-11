@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/kyverno/kyverno/ext/wildcard"
 	"github.com/kyverno/kyverno/pkg/pss/utils"
 	datautils "github.com/kyverno/kyverno/pkg/utils/data"
-	admissionregistrationv1alpha1 "k8s.io/api/admissionregistration/v1alpha1"
+	wildcard "github.com/kyverno/kyverno/pkg/utils/wildcard"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -78,11 +77,6 @@ type Rule struct {
 	// +optional
 	RawAnyAllConditions *apiextv1.JSON `json:"preconditions,omitempty" yaml:"preconditions,omitempty"`
 
-	// CELPreconditions are used to determine if a policy rule should be applied by evaluating a
-	// set of CEL conditions. It can only be used with the validate.cel subrule
-	// +optional
-	CELPreconditions []admissionregistrationv1alpha1.MatchCondition `json:"celPreconditions,omitempty" yaml:"celPreconditions,omitempty"`
-
 	// Mutation is used to modify matching resources.
 	// +optional
 	Mutation Mutation `json:"mutate,omitempty" yaml:"mutate,omitempty"`
@@ -98,31 +92,11 @@ type Rule struct {
 	// VerifyImages is used to verify image signatures and mutate them to add a digest
 	// +optional
 	VerifyImages []ImageVerification `json:"verifyImages,omitempty" yaml:"verifyImages,omitempty"`
-
-	// SkipBackgroundRequests bypasses admission requests that are sent by the background controller.
-	// The default value is set to "true", it must be set to "false" to apply
-	// generate and mutateExisting rules to those requests.
-	// +kubebuilder:default=true
-	// +kubebuilder:validation:Optional
-	SkipBackgroundRequests bool `json:"skipBackgroundRequests,omitempty" yaml:"skipBackgroundRequests,omitempty"`
 }
 
 // HasMutate checks for mutate rule
 func (r *Rule) HasMutate() bool {
 	return !datautils.DeepEqual(r.Mutation, Mutation{})
-}
-
-// HasMutateStandard checks for standard admission mutate rule
-func (r *Rule) HasMutateStandard() bool {
-	if r.HasMutateExisting() {
-		return false
-	}
-	return !datautils.DeepEqual(r.Mutation, Mutation{})
-}
-
-// HasMutateExisting checks if the mutate rule applies to existing resources
-func (r *Rule) HasMutateExisting() bool {
-	return r.Mutation.Targets != nil
 }
 
 // HasVerifyImages checks for verifyImages rule
@@ -155,11 +129,6 @@ func (r Rule) HasValidatePodSecurity() bool {
 	return r.Validation.PodSecurity != nil && !datautils.DeepEqual(r.Validation.PodSecurity, &PodSecurity{})
 }
 
-// HasValidateCEL checks for validate.cel rule
-func (r *Rule) HasValidateCEL() bool {
-	return r.Validation.CEL != nil && !datautils.DeepEqual(r.Validation.CEL, &CEL{})
-}
-
 // HasValidate checks for validate rule
 func (r *Rule) HasValidate() bool {
 	return !datautils.DeepEqual(r.Validation, Validation{})
@@ -168,6 +137,11 @@ func (r *Rule) HasValidate() bool {
 // HasGenerate checks for generate rule
 func (r *Rule) HasGenerate() bool {
 	return !datautils.DeepEqual(r.Generation, Generation{})
+}
+
+// IsMutateExisting checks if the mutate rule applies to existing resources
+func (r *Rule) IsMutateExisting() bool {
+	return r.Mutation.Targets != nil
 }
 
 func (r *Rule) IsPodSecurity() bool {
@@ -377,7 +351,7 @@ func (r *Rule) ValidateMatchExcludeConflict(path *field.Path) (errs field.ErrorL
 
 // ValidateMutationRuleTargetNamespace checks if the targets are scoped to the policy's namespace
 func (r *Rule) ValidateMutationRuleTargetNamespace(path *field.Path, namespaced bool, policyNamespace string) (errs field.ErrorList) {
-	if r.HasMutateExisting() && namespaced {
+	if r.HasMutate() && namespaced {
 		for idx, target := range r.Mutation.Targets {
 			if target.Namespace != "" && target.Namespace != policyNamespace {
 				errs = append(errs, field.Invalid(path.Child("targets").Index(idx).Child("namespace"), target.Namespace, "This field can be ignored or should have value of the namespace where the policy is being created"))

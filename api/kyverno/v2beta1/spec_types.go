@@ -41,12 +41,6 @@ type Spec struct {
 	// +optional
 	ValidationFailureActionOverrides []kyvernov1.ValidationFailureActionOverride `json:"validationFailureActionOverrides,omitempty" yaml:"validationFailureActionOverrides,omitempty"`
 
-	// Admission controls if rules are applied during admission.
-	// Optional. Default value is "true".
-	// +optional
-	// +kubebuilder:default=true
-	Admission *bool `json:"admission,omitempty" yaml:"admission,omitempty"`
-
 	// Background controls if rules are applied to existing resources during a background scan.
 	// Optional. Default value is "true". The value must be set to "false" if the policy rule
 	// uses variables that are only available in the admission review request (e.g. user name).
@@ -54,7 +48,9 @@ type Spec struct {
 	// +kubebuilder:default=true
 	Background *bool `json:"background,omitempty" yaml:"background,omitempty"`
 
-	// Deprecated.
+	// SchemaValidation skips validation checks for policies as well as patched resources.
+	// Optional. The default value is set to "true", it must be set to "false" to disable the validation checks.
+	// +optional
 	SchemaValidation *bool `json:"schemaValidation,omitempty" yaml:"schemaValidation,omitempty"`
 
 	// WebhookTimeoutSeconds specifies the maximum time in seconds allowed to apply this policy.
@@ -76,12 +72,6 @@ type Spec struct {
 	// Defaults to "false" if not specified.
 	// +optional
 	GenerateExisting bool `json:"generateExisting,omitempty" yaml:"generateExisting,omitempty"`
-
-	// UseServerSideApply controls whether to use server-side apply for generate rules
-	// If is set to "true" create & update for generate rules will use apply instead of create/update.
-	// Defaults to "false" if not specified.
-	// +optional
-	UseServerSideApply bool `json:"useServerSideApply,omitempty" yaml:"useServerSideApply,omitempty"`
 }
 
 func (s *Spec) SetRules(rules []Rule) {
@@ -106,26 +96,6 @@ func (s *Spec) HasMutate() bool {
 		}
 	}
 
-	return false
-}
-
-// HasMutate checks for standard admission mutate rule
-func (s *Spec) HasMutateStandard() bool {
-	for _, rule := range s.Rules {
-		if rule.HasMutateStandard() {
-			return true
-		}
-	}
-	return false
-}
-
-// HasMutate checks for mutate existing rule types
-func (s *Spec) HasMutateExisting() bool {
-	for _, rule := range s.Rules {
-		if rule.HasMutateExisting() {
-			return true
-		}
-	}
 	return false
 }
 
@@ -184,15 +154,6 @@ func (s *Spec) HasVerifyManifests() bool {
 	return false
 }
 
-// AdmissionProcessingEnabled checks if admission is set to true
-func (s *Spec) AdmissionProcessingEnabled() bool {
-	if s.Admission == nil {
-		return true
-	}
-
-	return *s.Admission
-}
-
 // BackgroundProcessingEnabled checks if background is set to true
 func (s *Spec) BackgroundProcessingEnabled() bool {
 	if s.Background == nil {
@@ -200,6 +161,16 @@ func (s *Spec) BackgroundProcessingEnabled() bool {
 	}
 
 	return *s.Background
+}
+
+// IsMutateExisting checks if the mutate policy applies to existing resources
+func (s *Spec) IsMutateExisting() bool {
+	for _, rule := range s.Rules {
+		if rule.IsMutateExisting() {
+			return true
+		}
+	}
+	return false
 }
 
 // GetMutateExistingOnPolicyUpdate return MutateExistingOnPolicyUpdate set value

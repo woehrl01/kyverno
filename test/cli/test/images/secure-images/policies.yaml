@@ -2,26 +2,23 @@
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
+  name: secure-images
   annotations:
     pod-policies.kyverno.io/autogen-controllers: none
-  name: secure-images
 spec:
-  admission: true
+  validationFailureAction: enforce
   background: false
-  failurePolicy: Fail
-  rules:
-  - match:
-      any:
-      - resources:
-          kinds:
-          - Pod
-    name: enforce-signatures
-    verifyImages:
-    - imageReferences:
-      - '*'
-      mutateDigest: false
-      required: true
-      useCache: true
-      verifyDigest: false
-  validationFailureAction: Enforce
   webhookTimeoutSeconds: 30
+  failurePolicy: Fail  
+  rules:
+    - name: enforce-signatures
+      match:
+        resources:
+          kinds:
+            - Pod
+      verifyImages:
+      - imageReferences:
+        - "*"
+        required: true
+        verifyDigest: false
+        mutateDigest: false 
