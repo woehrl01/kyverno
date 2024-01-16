@@ -61,24 +61,20 @@ func (probes) IsLive(context.Context) bool {
 
 func main() {
 	var (
-		dumpPayload       bool
-		serverIP          string
-		servicePort       int
-		webhookServerPort int
-		maxQueuedEvents   int
-		interval          time.Duration
-		renewBefore       time.Duration
+		dumpPayload     bool
+		serverIP        string
+		servicePort     int
+		maxQueuedEvents int
+		interval        time.Duration
 	)
 	flagset := flag.NewFlagSet("cleanup-controller", flag.ExitOnError)
 	flagset.BoolVar(&dumpPayload, "dumpPayload", false, "Set this flag to activate/deactivate debug mode.")
 	flagset.StringVar(&serverIP, "serverIP", "", "IP address where Kyverno controller runs. Only required if out-of-cluster.")
 	flagset.IntVar(&servicePort, "servicePort", 443, "Port used by the Kyverno Service resource and for webhook configurations.")
-	flagset.IntVar(&webhookServerPort, "webhookServerPort", 9443, "Port used by the webhook server.")
 	flagset.IntVar(&maxQueuedEvents, "maxQueuedEvents", 1000, "Maximum events to be queued.")
 	flagset.DurationVar(&interval, "ttlReconciliationInterval", time.Minute, "Set this flag to set the interval after which the resource controller reconciliation should occur")
 	flagset.StringVar(&caSecretName, "caSecretName", "", "Name of the secret containing CA.")
 	flagset.StringVar(&tlsSecretName, "tlsSecretName", "", "Name of the secret containing TLS pair.")
-	flagset.DurationVar(&renewBefore, "renewBefore", 15*24*time.Hour, "The certificate renewal time before expiration")
 	// config
 	appConfig := internal.NewConfiguration(
 		internal.WithProfiling(),
@@ -88,7 +84,6 @@ func main() {
 		internal.WithLeaderElection(),
 		internal.WithKyvernoClient(),
 		internal.WithKyvernoDynamicClient(),
-		internal.WithEventsClient(),
 		internal.WithConfigMapCaching(),
 		internal.WithDeferredLoading(),
 		internal.WithMetadataClient(),
@@ -133,8 +128,11 @@ func main() {
 		kyvernoInformer.Kyverno().V2beta1().ClusterCleanupPolicies(),
 		genericloggingcontroller.CheckGeneration,
 	)
-	eventGenerator := event.NewEventGenerator(
-		setup.EventsClient,
+	eventGenerator := event.NewEventCleanupGenerator(
+		setup.KyvernoDynamicClient,
+		kyvernoInformer.Kyverno().V2beta1().ClusterCleanupPolicies(),
+		kyvernoInformer.Kyverno().V2beta1().CleanupPolicies(),
+		maxQueuedEvents,
 		logging.WithName("EventGenerator"),
 	)
 	// start informers and wait for cache sync
@@ -143,7 +141,7 @@ func main() {
 	}
 	// start event generator
 	var wg sync.WaitGroup
-	go eventGenerator.Run(ctx, event.CleanupWorkers, &wg)
+	go eventGenerator.Run(ctx, 3, &wg)
 	// setup leader election
 	le, err := leaderelection.New(
 		setup.Logger.WithName("leader-election"),
@@ -166,7 +164,6 @@ func main() {
 				tls.CertRenewalInterval,
 				tls.CAValidityDuration,
 				tls.TLSValidityDuration,
-				renewBefore,
 				serverIP,
 				config.KyvernoServiceName(),
 				config.DnsNames(config.KyvernoServiceName(), config.KyvernoNamespace()),
@@ -197,7 +194,6 @@ func main() {
 					config.CleanupValidatingWebhookServicePath,
 					serverIP,
 					int32(servicePort),
-					int32(webhookServerPort),
 					nil,
 					[]admissionregistrationv1.RuleWithOperations{
 						{
@@ -233,7 +229,6 @@ func main() {
 					config.TtlValidatingWebhookServicePath,
 					serverIP,
 					int32(servicePort),
-					int32(webhookServerPort),
 					&metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{

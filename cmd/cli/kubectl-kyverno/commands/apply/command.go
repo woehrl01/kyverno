@@ -29,6 +29,7 @@ import (
 	"github.com/kyverno/kyverno/pkg/clients/dclient"
 	"github.com/kyverno/kyverno/pkg/config"
 	engineapi "github.com/kyverno/kyverno/pkg/engine/api"
+	"github.com/kyverno/kyverno/pkg/registryclient"
 	gitutils "github.com/kyverno/kyverno/pkg/utils/git"
 	policyvalidation "github.com/kyverno/kyverno/pkg/validation/policy"
 	"github.com/spf13/cobra"
@@ -77,7 +78,7 @@ func Command() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			out := cmd.OutOrStdout()
-			color.Init(removeColor)
+			color.InitColors(removeColor)
 			applyCommandConfig.PolicyPaths = args
 			rc, _, skipInvalidPolicies, responses, err := applyCommandConfig.applyCommandHelper(out)
 			if err != nil {
@@ -143,8 +144,7 @@ func (c *ApplyCommandConfig) applyCommandHelper(out io.Writer) (*processor.Resul
 	if err != nil {
 		return nil, nil, skipInvalidPolicies, nil, fmt.Errorf("failed to decode yaml (%w)", err)
 	}
-	var store store.Store
-	rc, resources1, skipInvalidPolicies, responses1, err, dClient := c.initStoreAndClusterClient(&store, skipInvalidPolicies)
+	rc, resources1, skipInvalidPolicies, responses1, err, dClient := c.initStoreAndClusterClient(skipInvalidPolicies)
 	if err != nil {
 		return rc, resources1, skipInvalidPolicies, responses1, err
 	}
@@ -165,9 +165,15 @@ func (c *ApplyCommandConfig) applyCommandHelper(out io.Writer) (*processor.Resul
 		fmt.Fprintf(out, "\nApplying %d policy rule(s) to %d resource(s)...\n", policyRulesCount, len(resources))
 	}
 
+	var regOpts []registryclient.Option
+	if c.RegistryAccess {
+		regOpts = append(regOpts, registryclient.WithLocalKeychain())
+	}
+
+	rclient := registryclient.NewOrDie(regOpts...)
+
 	rc, resources1, responses1, err = c.applyPolicytoResource(
 		out,
-		&store,
 		variables,
 		policies,
 		resources,
@@ -175,6 +181,7 @@ func (c *ApplyCommandConfig) applyCommandHelper(out io.Writer) (*processor.Resul
 		dClient,
 		userInfo,
 		mutateLogPathIsDir,
+		rclient,
 	)
 	if err != nil {
 		return rc, resources1, skipInvalidPolicies, responses1, err
@@ -224,7 +231,6 @@ func (c *ApplyCommandConfig) applyValidatingAdmissionPolicytoResource(
 
 func (c *ApplyCommandConfig) applyPolicytoResource(
 	out io.Writer,
-	store *store.Store,
 	vars *variables.Variables,
 	policies []kyvernov1.PolicyInterface,
 	resources []*unstructured.Unstructured,
@@ -232,9 +238,10 @@ func (c *ApplyCommandConfig) applyPolicytoResource(
 	dClient dclient.Interface,
 	userInfo *v1beta1.RequestInfo,
 	mutateLogPathIsDir bool,
+	rclient registryclient.Client,
 ) (*processor.ResultCounts, []*unstructured.Unstructured, []engineapi.EngineResponse, error) {
 	if vars != nil {
-		vars.SetInStore(store)
+		vars.SetInStore()
 	}
 	// validate policies
 	var validPolicies []kyvernov1.PolicyInterface
@@ -257,7 +264,6 @@ func (c *ApplyCommandConfig) applyPolicytoResource(
 	var responses []engineapi.EngineResponse
 	for _, resource := range resources {
 		processor := processor.PolicyProcessor{
-			Store:                store,
 			Policies:             validPolicies,
 			Resource:             *resource,
 			MutateLogPath:        c.MutateLogPath,
@@ -273,6 +279,7 @@ func (c *ApplyCommandConfig) applyPolicytoResource(
 			AuditWarn:            c.AuditWarn,
 			Subresources:         vars.Subresources(),
 			Out:                  out,
+			RegistryClient:       rclient,
 		}
 		ers, err := processor.ApplyPoliciesOnResource()
 		if err != nil {
@@ -344,7 +351,7 @@ func (c *ApplyCommandConfig) loadPolicies(skipInvalidPolicies SkippedInvalidPoli
 	return nil, nil, skipInvalidPolicies, nil, nil, policies, validatingAdmissionPolicies
 }
 
-func (c *ApplyCommandConfig) initStoreAndClusterClient(store *store.Store, skipInvalidPolicies SkippedInvalidPolicies) (*processor.ResultCounts, []*unstructured.Unstructured, SkippedInvalidPolicies, []engineapi.EngineResponse, error, dclient.Interface) {
+func (c *ApplyCommandConfig) initStoreAndClusterClient(skipInvalidPolicies SkippedInvalidPolicies) (*processor.ResultCounts, []*unstructured.Unstructured, SkippedInvalidPolicies, []engineapi.EngineResponse, error, dclient.Interface) {
 	store.SetLocal(true)
 	store.SetRegistryAccess(c.RegistryAccess)
 	if c.Cluster {
