@@ -13,11 +13,6 @@ metadata:
 spec:
   backoffLimit: 2
   template:
-    metadata:
-      {{- with .Values.webhooksCleanup.podLabels }}
-      labels:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
     spec:
       serviceAccount: {{ template "kyverno.admission-controller.serviceAccountName" . }}
       {{- with .Values.webhooksCleanup.podSecurityContext }}
@@ -49,7 +44,7 @@ spec:
       tolerations:
         {{- tpl (toYaml .) $ | nindent 8 }}
       {{- end }}
-      {{- with .Values.webhooksCleanup.nodeSelector | default .Values.global.nodeSelector }}
+      {{- with .Values.webhooksCleanup.nodeSelector }}
       nodeSelector:
         {{- tpl (toYaml .) $ | nindent 8 }}
       {{- end }}

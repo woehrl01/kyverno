@@ -992,11 +992,6 @@ func (in *PodSecurityStandard) DeepCopyInto(out *PodSecurityStandard) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.Values != nil {
-		in, out := &in.Values, &out.Values
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
 	return
 }
 
